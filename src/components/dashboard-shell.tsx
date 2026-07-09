@@ -891,7 +891,7 @@ function CampaignModal({
             {campaign ? (
               <>
                 <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
-                  <MiniStat label="Thu" value={money(campaign.income)} />
+                  <MiniStat label="Hùn phước" value={money(campaign.income)} />
                   <MiniStat label="Chi" value={money(campaign.expenses)} />
                   <MiniStat label="GD" value={campaign.transactionCount.toLocaleString("vi-VN")} />
                 </div>

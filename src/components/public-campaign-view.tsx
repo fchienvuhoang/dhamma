@@ -51,10 +51,10 @@ export function PublicCampaignView({ data }: { data: PublicCampaignData }) {
           ) : null}
 
           <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
-            <PublicStat label="Tổng thu" value={money(data.income)} tone="emerald" />
-            <PublicStat label="Tổng chi" value={money(data.expenses)} tone="amber" />
-            <PublicStat label="Còn lại" value={money(data.balance)} />
-            <PublicStat label="Giao dịch" value={data.transactionCount.toLocaleString("vi-VN")} />
+            <PublicStat label="Hùn phước" value={money(data.income)} tone="emerald" />
+            <PublicStat label="Đã cúng dường" value={money(data.expenses)} tone="amber" />
+            <PublicStat label="Tịnh tài còn lại" value={money(data.balance)} />
+            <PublicStat label="Lượt hùn phước" value={data.transactionCount.toLocaleString("vi-VN")} />
           </div>
         </div>
       </header>
@@ -180,7 +180,7 @@ function PublicStat({ label, value, tone = "zinc" }: { label: string; value: str
 function transactionMeta(transaction: PublicCampaignTransaction) {
   if (transaction.creditAmount > 0) {
     return {
-      label: "Thu",
+      label: "Hùn phước",
       amount: transaction.creditAmount,
       className: "border-emerald-200 bg-emerald-50 text-emerald-700",
       amountClassName: "text-emerald-700",
