@@ -1,0 +1,137 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum CampaignStatus {
+  ACTIVE
+  PAUSED
+  COMPLETED
+}
+
+enum KeywordMatchType {
+  CONTAINS
+  EXACT
+  REGEX
+}
+
+enum ClassificationStatus {
+  MATCHED
+  UNMATCHED
+  MANUAL
+}
+
+model BankAccount {
+  id             String            @id @default(cuid())
+  bankName       String            @default("TECHCOMBANK")
+  accountNumber  String            @unique
+  accountName    String?
+  currency       String            @default("VND")
+  currentBalance Decimal           @default(0) @db.Decimal(18, 2)
+  balanceAsOf    DateTime?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  importBatches  ImportBatch[]
+  transactions   BankTransaction[]
+
+  @@index([updatedAt])
+}
+
+model ImportBatch {
+  id             String            @id @default(cuid())
+  fileName       String
+  sourceBank     String            @default("TECHCOMBANK")
+  accountId      String?
+  account        BankAccount?      @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  fromDate       DateTime?
+  toDate         DateTime?
+  openingBalance Decimal?          @db.Decimal(18, 2)
+  closingBalance Decimal?          @db.Decimal(18, 2)
+  totalRows      Int               @default(0)
+  insertedRows   Int               @default(0)
+  duplicateRows  Int               @default(0)
+  unmatchedRows  Int               @default(0)
+  importedAt     DateTime          @default(now())
+  transactions   BankTransaction[]
+
+  @@index([importedAt])
+}
+
+model Campaign {
+  id           String            @id @default(cuid())
+  code         String            @unique
+  name         String
+  description  String?
+  status       CampaignStatus    @default(ACTIVE)
+  targetAmount Decimal?          @db.Decimal(18, 2)
+  startDate    DateTime?
+  endDate      DateTime?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  keywords     CampaignKeyword[]
+  transactions BankTransaction[]
+  expenses     Expense[]
+
+  @@index([status, createdAt])
+}
+
+model CampaignKeyword {
+  id                String           @id @default(cuid())
+  campaignId        String
+  campaign          Campaign         @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  keyword           String
+  normalizedKeyword String
+  matchType         KeywordMatchType @default(CONTAINS)
+  active            Boolean          @default(true)
+  createdAt         DateTime         @default(now())
+
+  @@unique([campaignId, normalizedKeyword, matchType])
+  @@index([normalizedKeyword])
+}
+
+model BankTransaction {
+  id                    String               @id @default(cuid())
+  accountId             String?
+  account               BankAccount?         @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  importBatchId         String?
+  importBatch           ImportBatch?         @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
+  campaignId            String?
+  campaign              Campaign?            @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  transactionDate       DateTime
+  statementRow          Int?
+  description           String               @db.Text
+  normalizedDescription String               @db.Text
+  detail                String               @unique
+  debitAmount           Decimal              @default(0) @db.Decimal(18, 2)
+  creditAmount          Decimal              @default(0) @db.Decimal(18, 2)
+  balanceAfter          Decimal?             @db.Decimal(18, 2)
+  matchedKeyword        String?
+  classificationStatus  ClassificationStatus @default(UNMATCHED)
+  raw                   Json?
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+
+  @@index([transactionDate, statementRow, createdAt])
+  @@index([campaignId, transactionDate])
+  @@index([classificationStatus])
+  @@index([creditAmount])
+}
+
+model Expense {
+  id         String    @id @default(cuid())
+  campaignId String?
+  campaign   Campaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  title      String
+  payee      String?
+  note       String?   @db.Text
+  amount     Decimal   @db.Decimal(18, 2)
+  spentAt    DateTime
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([spentAt])
+  @@index([campaignId, spentAt])
+}
