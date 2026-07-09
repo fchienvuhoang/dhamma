@@ -178,9 +178,6 @@ async function loadKeywordRules(prisma: PrismaClient): Promise<KeywordRule[]> {
   const keywords = await prisma.campaignKeyword.findMany({
     where: {
       active: true,
-      campaign: {
-        status: "ACTIVE",
-      },
     },
     include: {
       campaign: {

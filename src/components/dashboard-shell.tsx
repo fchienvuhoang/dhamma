@@ -263,7 +263,7 @@ function Dashboard({ data }: { data: DashboardData }) {
   return (
     <div className="min-h-screen bg-[#f7f7f4] text-zinc-950">
       <header className="border-b border-zinc-200 bg-white">
-        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-5 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
+        <div className="mx-auto flex max-w-[1600px] flex-col gap-4 px-4 py-5 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
               Techcombank statement classifier
@@ -289,103 +289,64 @@ function Dashboard({ data }: { data: DashboardData }) {
         </div>
       </header>
 
-      <main className="mx-auto grid max-w-7xl gap-5 px-4 py-5 sm:px-6 lg:grid-cols-[360px_minmax(0,1fr)] lg:px-8">
-        <aside className="space-y-5">
-          <Panel>
-            <PanelTitle icon={Upload} title="Import sao kê" />
-            <form className="mt-4 space-y-3" onSubmit={handleImport}>
-              <input
-                name="file"
-                type="file"
-                accept=".xlsx,.xls"
-                required
-                className="block w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-zinc-900 file:px-3 file:py-2 file:text-sm file:font-medium file:text-white"
-              />
+      <main className="mx-auto max-w-[1600px] space-y-5 px-4 py-5 sm:px-6 lg:px-8">
+        <StatusMessages message={message} error={error} />
+
+        <Panel>
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+            <div className="min-w-0 flex-1">
+              <PanelTitle icon={Upload} title="Import sao kê" />
+              <form className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto]" onSubmit={handleImport}>
+                <input
+                  name="file"
+                  type="file"
+                  accept=".xlsx,.xls"
+                  required
+                  className="block w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-zinc-900 file:px-3 file:py-2 file:text-sm file:font-medium file:text-white"
+                />
+                <button
+                  disabled={isImporting}
+                  className="inline-flex items-center justify-center gap-2 rounded-md bg-zinc-950 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isImporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSpreadsheet className="h-4 w-4" />}
+                  Import Excel
+                </button>
+              </form>
+              {data.latestImport ? (
+                <p className="mt-3 text-xs leading-5 text-zinc-500">
+                  Lần import gần nhất: {data.latestImport.fileName}, {dateTime(data.latestImport.importedAt)}
+                </p>
+              ) : null}
+            </div>
+
+            <div className="flex flex-col gap-3 xl:w-80">
               <button
-                disabled={isImporting}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-zinc-950 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
+                type="button"
+                onClick={() => setCampaignModal({ mode: "create" })}
+                className="inline-flex items-center justify-center gap-2 rounded-md bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-800"
               >
-                {isImporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSpreadsheet className="h-4 w-4" />}
-                Import Excel
+                <Plus className="h-4 w-4" />
+                Thêm thiện pháp
               </button>
-            </form>
-            {importResult ? (
-              <div className="mt-4 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
-                <div className="flex items-center gap-2 font-medium">
-                  <CheckCircle2 className="h-4 w-4" />
-                  {importResult.fileName}
+              {importResult ? (
+                <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
+                  <div className="flex items-center gap-2 font-medium">
+                    <CheckCircle2 className="h-4 w-4" />
+                    {importResult.fileName}
+                  </div>
+                  <dl className="mt-2 grid grid-cols-2 gap-2">
+                    <StatLine label="Mới" value={importResult.insertedRows} />
+                    <StatLine label="Trùng" value={importResult.duplicateRows} />
+                    <StatLine label="Tổng dòng" value={importResult.totalRows} />
+                    <StatLine label="Chưa khớp" value={importResult.unmatchedRows} />
+                  </dl>
                 </div>
-                <dl className="mt-2 grid grid-cols-2 gap-2">
-                  <StatLine label="Mới" value={importResult.insertedRows} />
-                  <StatLine label="Trùng" value={importResult.duplicateRows} />
-                  <StatLine label="Tổng dòng" value={importResult.totalRows} />
-                  <StatLine label="Chưa khớp" value={importResult.unmatchedRows} />
-                </dl>
-              </div>
-            ) : null}
-            {data.latestImport ? (
-              <p className="mt-3 text-xs leading-5 text-zinc-500">
-                Lần import gần nhất: {data.latestImport.fileName}, {dateTime(data.latestImport.importedAt)}
-              </p>
-            ) : null}
-          </Panel>
-
-          <Panel>
-            <PanelTitle icon={Plus} title="Thêm thiện pháp" />
-            <form className="mt-4 space-y-3" onSubmit={handleCampaignCreate}>
-              <Input name="code" label="Mã" placeholder="cntt10" required />
-              <Input name="name" label="Tên thiện pháp" placeholder="Cúng dường y áo..." required />
-              <Select name="status" label="Trạng thái" defaultValue="ACTIVE">
-                <option value="ACTIVE">Đang chạy</option>
-                <option value="PAUSED">Tạm dừng</option>
-                <option value="COMPLETED">Hoàn tất</option>
-              </Select>
-              <Textarea
-                name="keywords"
-                label="Từ khóa"
-                placeholder={"cntt10\nchùa tam tạng 10\ncung duong y ao"}
-              />
-              <Textarea name="description" label="Ghi chú" rows={2} />
-              <button
-                disabled={isSavingCampaign}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-emerald-700 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {isSavingCampaign ? <Loader2 className="h-4 w-4 animate-spin" /> : <Tags className="h-4 w-4" />}
-                Lưu thiện pháp
-              </button>
-            </form>
-          </Panel>
-
-          <Panel>
-            <PanelTitle icon={ArrowUpFromLine} title="Ghi nhận khoản chi" />
-            <form className="mt-4 space-y-3" onSubmit={handleExpenseCreate}>
-              <Input name="title" label="Nội dung chi" placeholder="Mua y áo / chuyển khoản..." required />
-              <Input name="amount" label="Số tiền" inputMode="numeric" placeholder="1000000" required />
-              <Input name="spentAt" label="Ngày chi" type="date" defaultValue={todayInput()} required />
-              <Select name="campaignId" label="Thiện pháp">
-                <option value="">Chi chung</option>
-                {data.campaigns.map((campaign) => (
-                  <option key={campaign.id} value={campaign.id}>
-                    {campaign.code} - {campaign.name}
-                  </option>
-                ))}
-              </Select>
-              <Input name="payee" label="Người nhận" />
-              <Textarea name="note" label="Ghi chú" rows={2} />
-              <button
-                disabled={isSavingExpense}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-amber-600 px-3 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {isSavingExpense ? <Loader2 className="h-4 w-4 animate-spin" /> : <Banknote className="h-4 w-4" />}
-                Lưu khoản chi
-              </button>
-            </form>
-          </Panel>
-        </aside>
+              ) : null}
+            </div>
+          </div>
+        </Panel>
 
         <section className="space-y-5">
-          <StatusMessages message={message} error={error} />
-
           <div className="flex gap-2 rounded-md border border-zinc-200 bg-white p-1">
             <MainTabButton
               active={mainTab === "overview"}
@@ -419,10 +380,7 @@ function Dashboard({ data }: { data: DashboardData }) {
                 </div>
                 <CampaignTable
                   campaigns={data.campaigns}
-                  isSaving={isSavingCampaign}
-                  deletingCampaignId={deletingCampaignId}
-                  onUpdate={handleCampaignUpdate}
-                  onDelete={handleCampaignDelete}
+                  onSelect={(campaign) => setCampaignModal({ mode: "edit", campaign })}
                 />
               </Panel>
 
@@ -491,8 +449,18 @@ function Dashboard({ data }: { data: DashboardData }) {
               />
             </Panel>
           )}
-
         </section>
+        {campaignModal ? (
+          <CampaignModal
+            state={campaignModal}
+            isSaving={isSavingCampaign}
+            isDeleting={campaignModal.mode === "edit" && deletingCampaignId === campaignModal.campaign.id}
+            onClose={() => setCampaignModal(null)}
+            onCreate={handleCampaignCreate}
+            onUpdate={handleCampaignUpdate}
+            onDelete={handleCampaignDelete}
+          />
+        ) : null}
       </main>
     </div>
   );
@@ -592,113 +560,101 @@ function TransactionTable({
 
 function CampaignTable({
   campaigns,
-  isSaving,
-  deletingCampaignId,
-  onUpdate,
-  onDelete,
+  onSelect,
 }: {
   campaigns: CampaignSummary[];
-  isSaving: boolean;
-  deletingCampaignId: string | null;
-  onUpdate: (event: FormEvent<HTMLFormElement>, campaignId: string) => void;
-  onDelete: (campaign: CampaignSummary) => void;
+  onSelect: (campaign: CampaignSummary) => void;
 }) {
   return (
-    <>
-      <div className="mt-4 overflow-hidden rounded-md border border-zinc-200">
-        <div className="overflow-auto">
-          <table className="w-full min-w-[980px] text-left text-sm">
-            <thead className="bg-zinc-50 text-xs uppercase text-zinc-500">
-              <tr>
-                <th className="px-3 py-2">Mã</th>
-                <th className="px-3 py-2">Thiện pháp</th>
-                <th className="px-3 py-2">Trạng thái</th>
-                <th className="px-3 py-2">Từ khóa</th>
-                <th className="px-3 py-2 text-right">Tổng thu</th>
-                <th className="px-3 py-2 text-right">Tổng chi</th>
-                <th className="px-3 py-2 text-right">Còn lại</th>
-                <th className="px-3 py-2 text-right">GD</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-zinc-100 bg-white">
-              {campaigns.map((campaign) => (
-                <tr key={campaign.id} className="hover:bg-zinc-50">
-                  <td className="whitespace-nowrap px-3 py-2">
-                    <span className="rounded-md bg-zinc-950 px-2 py-1 font-mono text-xs font-medium text-white">
-                      {campaign.code}
-                    </span>
-                  </td>
-                  <td className="max-w-xs px-3 py-2">
-                    <div className="font-medium text-zinc-900">{campaign.name}</div>
-                    {campaign.description ? (
-                      <div className="mt-1 line-clamp-1 text-xs text-zinc-500">{campaign.description}</div>
+    <div className="mt-4 overflow-hidden rounded-md border border-zinc-200">
+      <div className="overflow-auto">
+        <table className="w-full min-w-[980px] text-left text-sm">
+          <thead className="bg-zinc-50 text-xs uppercase text-zinc-500">
+            <tr>
+              <th className="px-3 py-2">Mã</th>
+              <th className="px-3 py-2">Thiện pháp</th>
+              <th className="px-3 py-2">Trạng thái</th>
+              <th className="px-3 py-2">Từ khóa</th>
+              <th className="px-3 py-2 text-right">Tổng thu</th>
+              <th className="px-3 py-2 text-right">Tổng chi</th>
+              <th className="px-3 py-2 text-right">Còn lại</th>
+              <th className="px-3 py-2 text-right">GD</th>
+              <th className="px-3 py-2 text-right">Sửa</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-zinc-100 bg-white">
+            {campaigns.map((campaign) => (
+              <tr
+                key={campaign.id}
+                role="button"
+                tabIndex={0}
+                onClick={() => onSelect(campaign)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    onSelect(campaign);
+                  }
+                }}
+                className="cursor-pointer hover:bg-zinc-50 focus:bg-zinc-50 focus:outline-none"
+              >
+                <td className="whitespace-nowrap px-3 py-2">
+                  <span className="rounded-md bg-zinc-950 px-2 py-1 font-mono text-xs font-medium text-white">
+                    {campaign.code}
+                  </span>
+                </td>
+                <td className="max-w-xs px-3 py-2">
+                  <div className="font-medium text-zinc-900">{campaign.name}</div>
+                  {campaign.description ? (
+                    <div className="mt-1 line-clamp-1 text-xs text-zinc-500">{campaign.description}</div>
+                  ) : null}
+                </td>
+                <td className="whitespace-nowrap px-3 py-2">
+                  <span className={`rounded-md border px-2 py-1 text-xs font-medium ${statusClassNames[campaign.status]}`}>
+                    {statusLabels[campaign.status]}
+                  </span>
+                </td>
+                <td className="max-w-xs px-3 py-2">
+                  <div className="flex flex-wrap gap-1">
+                    {campaign.keywords.slice(0, 4).map((keyword) => (
+                      <span key={keyword.id} className="rounded-md bg-zinc-100 px-2 py-1 text-xs text-zinc-600">
+                        {keyword.keyword}
+                      </span>
+                    ))}
+                    {campaign.keywords.length > 4 ? (
+                      <span className="rounded-md bg-zinc-100 px-2 py-1 text-xs text-zinc-500">
+                        +{campaign.keywords.length - 4}
+                      </span>
                     ) : null}
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-2">
-                    <span className={`rounded-md border px-2 py-1 text-xs font-medium ${statusClassNames[campaign.status]}`}>
-                      {statusLabels[campaign.status]}
-                    </span>
-                  </td>
-                  <td className="max-w-xs px-3 py-2">
-                    <div className="flex flex-wrap gap-1">
-                      {campaign.keywords.slice(0, 4).map((keyword) => (
-                        <span key={keyword.id} className="rounded-md bg-zinc-100 px-2 py-1 text-xs text-zinc-600">
-                          {keyword.keyword}
-                        </span>
-                      ))}
-                      {campaign.keywords.length > 4 ? (
-                        <span className="rounded-md bg-zinc-100 px-2 py-1 text-xs text-zinc-500">
-                          +{campaign.keywords.length - 4}
-                        </span>
-                      ) : null}
-                    </div>
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-2 text-right font-medium text-emerald-700">
-                    {money(campaign.income)}
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-2 text-right text-amber-700">
-                    {money(campaign.expenses)}
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-2 text-right font-semibold text-zinc-950">
-                    {money(campaign.balance)}
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-2 text-right text-zinc-600">
-                    {campaign.transactionCount.toLocaleString("vi-VN")}
-                  </td>
-                </tr>
-              ))}
-              {campaigns.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="px-3 py-8 text-center text-zinc-500">
-                    Chưa có thiện pháp nào.
-                  </td>
-                </tr>
-              ) : null}
-            </tbody>
-          </table>
-        </div>
+                  </div>
+                </td>
+                <td className="whitespace-nowrap px-3 py-2 text-right font-medium text-emerald-700">
+                  {money(campaign.income)}
+                </td>
+                <td className="whitespace-nowrap px-3 py-2 text-right text-amber-700">
+                  {money(campaign.expenses)}
+                </td>
+                <td className="whitespace-nowrap px-3 py-2 text-right font-semibold text-zinc-950">
+                  {money(campaign.balance)}
+                </td>
+                <td className="whitespace-nowrap px-3 py-2 text-right text-zinc-600">
+                  {campaign.transactionCount.toLocaleString("vi-VN")}
+                </td>
+                <td className="whitespace-nowrap px-3 py-2 text-right text-zinc-500">
+                  <Settings className="ml-auto h-4 w-4" />
+                </td>
+              </tr>
+            ))}
+            {campaigns.length === 0 ? (
+              <tr>
+                <td colSpan={9} className="px-3 py-8 text-center text-zinc-500">
+                  Chưa có thiện pháp nào.
+                </td>
+              </tr>
+            ) : null}
+          </tbody>
+        </table>
       </div>
-
-      <details className="group mt-4 rounded-md border border-zinc-200 bg-zinc-50 p-3">
-        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-medium text-zinc-800">
-          Sửa từ khóa, trạng thái hoặc xóa thiện pháp
-          <span className="text-xs text-zinc-500 group-open:hidden">Mở</span>
-          <span className="hidden text-xs text-zinc-500 group-open:inline">Thu gọn</span>
-        </summary>
-        <div className="mt-3 grid gap-3 xl:grid-cols-2">
-          {campaigns.map((campaign) => (
-            <CampaignPanel
-              key={campaign.id}
-              campaign={campaign}
-              isSaving={isSaving}
-              isDeleting={deletingCampaignId === campaign.id}
-              onUpdate={onUpdate}
-              onDelete={onDelete}
-            />
-          ))}
-        </div>
-      </details>
-    </>
+    </div>
   );
 }
 
@@ -805,7 +761,7 @@ function FundSummaryTable({ data }: { data: DashboardData }) {
     {
       label: "Tổng chi đã ghi nhận",
       value: totalExpenses,
-      note: "Cộng cột NỢ trong sao kê và các khoản chi nhập tay.",
+      note: "Cộng cột NỢ trong sao kê.",
       className: "text-amber-700",
     },
     {
@@ -868,94 +824,125 @@ function FundSummaryTable({ data }: { data: DashboardData }) {
   );
 }
 
-function CampaignPanel({
-  campaign,
+function CampaignModal({
+  state,
   isSaving,
   isDeleting,
+  onClose,
+  onCreate,
   onUpdate,
   onDelete,
 }: {
-  campaign: CampaignSummary;
+  state: CampaignModalState;
   isSaving: boolean;
   isDeleting: boolean;
+  onClose: () => void;
+  onCreate: (event: FormEvent<HTMLFormElement>) => void;
   onUpdate: (event: FormEvent<HTMLFormElement>, campaignId: string) => void;
   onDelete: (campaign: CampaignSummary) => void;
 }) {
-  const canDelete = campaign.transactionCount === 0 && campaign.expenseCount === 0;
+  const campaign = state.mode === "edit" ? state.campaign : null;
+  const canDelete = campaign ? campaign.transactionCount === 0 : false;
 
   return (
-    <details className="rounded-md border border-zinc-200 bg-white p-4">
-      <summary className="cursor-pointer list-none">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="rounded-md bg-zinc-950 px-2 py-1 font-mono text-xs font-medium text-white">
-                {campaign.code}
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-zinc-950/40 px-4 py-8">
+      <div className="w-full max-w-2xl rounded-md border border-zinc-200 bg-white shadow-xl">
+        <div className="flex items-start justify-between gap-3 border-b border-zinc-200 px-5 py-4">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="rounded-md bg-zinc-100 p-2 text-zinc-700">
+                <Tags className="h-4 w-4" />
               </span>
-              <span className={`rounded-md border px-2 py-1 text-xs font-medium ${statusClassNames[campaign.status]}`}>
-                {statusLabels[campaign.status]}
-              </span>
+              <h2 className="text-base font-semibold text-zinc-950">
+                {campaign ? "Sửa thiện pháp" : "Thêm thiện pháp"}
+              </h2>
             </div>
-            <h3 className="mt-2 text-sm font-semibold text-zinc-950">{campaign.name}</h3>
+            {campaign ? (
+              <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
+                <MiniStat label="Thu" value={money(campaign.income)} />
+                <MiniStat label="Chi" value={money(campaign.expenses)} />
+                <MiniStat label="GD" value={campaign.transactionCount.toLocaleString("vi-VN")} />
+              </div>
+            ) : null}
           </div>
-          <div className="text-right">
-            <div className="text-sm font-semibold text-emerald-700">{money(campaign.income)}</div>
-            <div className="text-xs text-zinc-500">thu</div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-zinc-200 text-zinc-600 hover:bg-zinc-50 hover:text-zinc-950"
+            aria-label="Đóng"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <form
+          key={campaign?.id ?? "create"}
+          className="space-y-4 px-5 py-4"
+          onSubmit={(event) => (campaign ? onUpdate(event, campaign.id) : onCreate(event))}
+        >
+          <div className="grid gap-4 md:grid-cols-2">
+            <Input name="code" label="Mã" defaultValue={campaign?.code ?? ""} placeholder="cntt10" required />
+            <Select name="status" label="Trạng thái" defaultValue={campaign?.status ?? "ACTIVE"}>
+              <option value="ACTIVE">Đang chạy</option>
+              <option value="PAUSED">Tạm dừng</option>
+              <option value="COMPLETED">Hoàn tất</option>
+            </Select>
           </div>
-        </div>
-        <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
-          <MiniStat label="Chi" value={money(campaign.expenses)} />
-          <MiniStat label="Tồn" value={money(campaign.balance)} />
-          <MiniStat label="GD" value={campaign.transactionCount.toLocaleString("vi-VN")} />
-        </div>
-        <div className="mt-3 flex flex-wrap gap-1.5">
-          {campaign.keywords.slice(0, 8).map((keyword) => (
-            <span key={keyword.id} className="rounded-md bg-zinc-100 px-2 py-1 text-xs text-zinc-600">
-              {keyword.keyword}
-            </span>
-          ))}
-        </div>
-      </summary>
-      <form className="mt-4 space-y-3 border-t border-zinc-100 pt-4" onSubmit={(event) => onUpdate(event, campaign.id)}>
-        <Input name="code" label="Mã" defaultValue={campaign.code} required />
-        <Input name="name" label="Tên thiện pháp" defaultValue={campaign.name} required />
-        <Select name="status" label="Trạng thái" defaultValue={campaign.status}>
-          <option value="ACTIVE">Đang chạy</option>
-          <option value="PAUSED">Tạm dừng</option>
-          <option value="COMPLETED">Hoàn tất</option>
-        </Select>
-        <Textarea
-          name="keywords"
-          label="Từ khóa"
-          rows={4}
-          defaultValue={campaign.keywords.map((keyword) => keyword.keyword).join("\n")}
-        />
-        <Textarea name="description" label="Ghi chú" rows={2} defaultValue={campaign.description ?? ""} />
-        <button
-          disabled={isSaving}
-          className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-800 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Settings className="h-4 w-4" />}
-          Cập nhật
-        </button>
-      </form>
-      <div className="mt-3 border-t border-zinc-100 pt-3">
-        <button
-          type="button"
-          disabled={!canDelete || isDeleting}
-          onClick={() => onDelete(campaign)}
-          className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700 hover:bg-rose-100 disabled:cursor-not-allowed disabled:border-zinc-200 disabled:bg-zinc-50 disabled:text-zinc-400"
-        >
-          {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-          Xóa thiện pháp
-        </button>
-        <p className="mt-2 text-xs leading-5 text-zinc-500">
-          {canDelete
-            ? "Có thể xóa vì thiện pháp này chưa có giao dịch hoặc khoản chi."
-            : "Không thể xóa khi đã có giao dịch hoặc khoản chi."}
-        </p>
+          <Input
+            name="name"
+            label="Tên thiện pháp"
+            defaultValue={campaign?.name ?? ""}
+            placeholder="Cúng dường y áo..."
+            required
+          />
+          <Textarea
+            name="keywords"
+            label="Từ khóa"
+            rows={5}
+            defaultValue={campaign?.keywords.map((keyword) => keyword.keyword).join("\n") ?? ""}
+            placeholder={"cntt10\nchùa tam tạng 10\ncung duong y ao"}
+          />
+          <Textarea name="description" label="Ghi chú" rows={3} defaultValue={campaign?.description ?? ""} />
+
+          <div className="flex flex-col-reverse gap-3 border-t border-zinc-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
+            {campaign ? (
+              <div>
+                <button
+                  type="button"
+                  disabled={!canDelete || isDeleting}
+                  onClick={() => onDelete(campaign)}
+                  className="inline-flex items-center justify-center gap-2 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700 hover:bg-rose-100 disabled:cursor-not-allowed disabled:border-zinc-200 disabled:bg-zinc-50 disabled:text-zinc-400"
+                >
+                  {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                  Xóa
+                </button>
+                <p className="mt-2 text-xs leading-5 text-zinc-500">
+                  {canDelete ? "Có thể xóa vì chưa có giao dịch sao kê." : "Không thể xóa khi đã có giao dịch sao kê."}
+                </p>
+              </div>
+            ) : (
+              <span />
+            )}
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={onClose}
+                className="inline-flex items-center justify-center rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-800 hover:bg-zinc-50"
+              >
+                Hủy
+              </button>
+              <button
+                disabled={isSaving}
+                className="inline-flex items-center justify-center gap-2 rounded-md bg-emerald-700 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Tags className="h-4 w-4" />}
+                {campaign ? "Cập nhật" : "Tạo thiện pháp"}
+              </button>
+            </div>
+          </div>
+        </form>
       </div>
-    </details>
+    </div>
   );
 }
 
@@ -1207,8 +1194,4 @@ function dateTime(value: string) {
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date(value));
-}
-
-function todayInput() {
-  return new Date().toISOString().slice(0, 10);
 }

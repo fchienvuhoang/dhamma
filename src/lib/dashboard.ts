@@ -35,7 +35,6 @@ export type DashboardData = {
   campaigns: CampaignSummary[];
   transactions: TransactionSummary[];
   debitTransactions: TransactionSummary[];
-  expenses: ExpenseSummary[];
   latestImport: {
     fileName: string;
     importedAt: string;
@@ -57,7 +56,6 @@ export type CampaignSummary = {
   expenses: number;
   balance: number;
   transactionCount: number;
-  expenseCount: number;
   keywords: {
     id: string;
     keyword: string;
@@ -78,20 +76,6 @@ export type TransactionSummary = {
   balanceAfter: number | null;
   matchedKeyword: string | null;
   classificationStatus: "MATCHED" | "UNMATCHED" | "MANUAL";
-  campaign: {
-    id: string;
-    code: string;
-    name: string;
-  } | null;
-};
-
-export type ExpenseSummary = {
-  id: string;
-  title: string;
-  amount: number;
-  spentAt: string;
-  payee: string | null;
-  note: string | null;
   campaign: {
     id: string;
     code: string;
@@ -123,7 +107,6 @@ export async function getDashboardState(): Promise<DashboardState> {
           _count: {
             select: {
               transactions: true,
-              expenses: true,
             },
           },
         },
@@ -242,7 +225,6 @@ export async function getDashboardState(): Promise<DashboardState> {
         expenses: expensesAmount,
         balance: income - expensesAmount,
         transactionCount: campaign._count.transactions,
-        expenseCount: campaign._count.expenses,
         keywords: campaign.keywords.map((keyword) => ({
           id: keyword.id,
           keyword: keyword.keyword,
@@ -310,7 +292,6 @@ export async function getDashboardState(): Promise<DashboardState> {
           classificationStatus: transaction.classificationStatus,
           campaign: transaction.campaign,
         })),
-        expenses: [],
         latestImport: latestImport
           ? {
               fileName: latestImport.fileName,
