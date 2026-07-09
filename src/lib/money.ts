@@ -1,6 +1,6 @@
-import { Prisma } from "@prisma/client";
+import { Decimal } from "@prisma/client/runtime/client";
 
-type DecimalValue = Prisma.Decimal | number | string | null | undefined;
+type DecimalValue = Decimal | number | string | null | undefined;
 
 export function decimalToNumber(value: DecimalValue) {
   if (value == null) {
@@ -34,5 +34,5 @@ export function parseAmount(value: unknown) {
 }
 
 export function toPrismaDecimal(value: number) {
-  return new Prisma.Decimal(value || 0);
+  return new Decimal(value || 0);
 }

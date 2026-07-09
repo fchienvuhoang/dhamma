@@ -1,5 +1,5 @@
 import type { PrismaClient } from "@prisma/client";
-import { Prisma } from "@prisma/client";
+import { PrismaClientKnownRequestError, type InputJsonObject } from "@prisma/client/runtime/client";
 import { classifyDescription, type KeywordRule } from "@/lib/classifier";
 import { toPrismaDecimal } from "@/lib/money";
 import { getPrisma } from "@/lib/prisma";
@@ -17,6 +17,11 @@ export type ImportResult = {
   closingBalance: number | null;
 };
 
+type TransactionClient = Omit<
+  PrismaClient,
+  "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends"
+>;
+
 export async function importTechcombankStatement(fileName: string, buffer: Buffer) {
   const prisma = getPrisma();
   const parsed = parseTechcombankStatement(buffer);
@@ -29,7 +34,7 @@ export async function importTechcombankStatement(fileName: string, buffer: Buffe
     }
   }
 
-  return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+  return prisma.$transaction(async (tx: TransactionClient) => {
     const accountNumber = parsed.meta.accountNumber ?? "TECHCOMBANK_UNKNOWN";
     const account = await tx.bankAccount.upsert({
       where: { accountNumber },
@@ -90,7 +95,7 @@ export async function importTechcombankStatement(fileName: string, buffer: Buffe
         balanceAfter: row.balanceAfter == null ? null : toPrismaDecimal(row.balanceAfter),
         matchedKeyword: classification.matchedKeyword,
         classificationStatus: classification.status,
-        raw: row.raw as Prisma.InputJsonObject,
+        raw: row.raw as InputJsonObject,
       };
     });
 
@@ -201,5 +206,5 @@ async function loadKeywordRules(prisma: PrismaClient): Promise<KeywordRule[]> {
 }
 
 export function isUniqueConstraintError(error: unknown) {
-  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
+  return error instanceof PrismaClientKnownRequestError && error.code === "P2002";
 }

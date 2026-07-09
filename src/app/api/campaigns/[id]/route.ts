@@ -1,4 +1,4 @@
-import { Prisma } from "@prisma/client";
+import type { PrismaClient } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { apiError } from "@/lib/api";
@@ -13,6 +13,11 @@ const updateCampaignSchema = z.object({
   keywords: z.array(z.string().min(1)).default([]),
 });
 
+type TransactionClient = Omit<
+  PrismaClient,
+  "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends"
+>;
+
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await context.params;
@@ -21,7 +26,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     const code = makeCampaignCode(body.code);
     const keywords = uniqueKeywords([body.code, ...body.keywords]);
 
-    const campaign = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    const campaign = await prisma.$transaction(async (tx: TransactionClient) => {
       await tx.campaignKeyword.deleteMany({
         where: { campaignId: id },
       });
