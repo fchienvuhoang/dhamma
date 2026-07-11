@@ -116,6 +116,7 @@ model BankTransaction {
 
   @@index([transactionDate, statementRow, createdAt])
   @@index([campaignId, transactionDate])
+  @@index([campaignId, transactionDate, createdAt, statementRow])
   @@index([classificationStatus])
   @@index([creditAmount])
 }
