@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { apiError } from "@/lib/api";
 import { importTechcombankStatement } from "@/lib/importer";
+import {
+  invalidatePublicCampaignCache,
+  warmPublicCampaignCaches,
+} from "@/lib/public-campaign";
 
 export const runtime = "nodejs";
 
@@ -15,6 +19,8 @@ export async function POST(request: Request) {
 
     const buffer = Buffer.from(await file.arrayBuffer());
     const result = await importTechcombankStatement(file.name, buffer);
+    const affectedCodes = invalidatePublicCampaignCache(result.affectedCampaignCodes);
+    await warmPublicCampaignCaches(affectedCodes);
 
     return NextResponse.json(result);
   } catch (error) {

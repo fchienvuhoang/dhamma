@@ -15,6 +15,7 @@ export type ImportResult = {
   unmatchedRows: number;
   accountNumber: string | null;
   closingBalance: number | null;
+  affectedCampaignCodes: string[];
 };
 
 type TransactionClient = Omit<
@@ -108,6 +109,14 @@ export async function importTechcombankStatement(fileName: string, buffer: Buffe
 
     const duplicateRows = parsed.rows.length - created.count;
     const unmatchedRows = data.filter((row) => row.classificationStatus === "UNMATCHED").length;
+    const campaignCodesById = new Map(rules.map((rule) => [rule.campaignId, rule.campaignCode]));
+    const affectedCampaignCodes = [
+      ...new Set(
+        data
+          .map((row) => row.campaignId && campaignCodesById.get(row.campaignId))
+          .filter((code): code is string => Boolean(code)),
+      ),
+    ];
 
     await tx.importBatch.update({
       where: { id: batch.id },
@@ -127,6 +136,7 @@ export async function importTechcombankStatement(fileName: string, buffer: Buffe
       unmatchedRows,
       accountNumber: parsed.meta.accountNumber,
       closingBalance: parsed.meta.closingBalance,
+      affectedCampaignCodes,
     } satisfies ImportResult;
   });
 }
@@ -143,14 +153,29 @@ export async function reclassifyImportedTransactions() {
     select: {
       id: true,
       description: true,
+      campaignId: true,
+      campaign: {
+        select: { code: true },
+      },
     },
   });
 
   let matchedRows = 0;
   let unmatchedRows = 0;
+  const affectedCampaignIds = new Set<string>();
+  const affectedCampaignCodes = new Set<string>();
 
   const updates = transactions.map((transaction) => {
+    if (transaction.campaignId) {
+      affectedCampaignIds.add(transaction.campaignId);
+    }
+    if (transaction.campaign?.code) {
+      affectedCampaignCodes.add(transaction.campaign.code);
+    }
     const classification = classifyDescription(transaction.description, rules);
+    if (classification.campaignId) {
+      affectedCampaignIds.add(classification.campaignId);
+    }
     if (classification.status === "MATCHED") {
       matchedRows += 1;
     } else {
@@ -176,6 +201,12 @@ export async function reclassifyImportedTransactions() {
     totalRows: transactions.length,
     matchedRows,
     unmatchedRows,
+    affectedCampaignCodes: [
+      ...affectedCampaignCodes,
+      ...rules
+        .filter((rule) => affectedCampaignIds.has(rule.campaignId))
+        .map((rule) => rule.campaignCode),
+    ].filter((code, index, codes) => codes.indexOf(code) === index),
   };
 }
 

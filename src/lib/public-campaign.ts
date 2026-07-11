@@ -1,4 +1,4 @@
-import { unstable_cache } from "next/cache";
+import { revalidateTag, unstable_cache } from "next/cache";
 import { decimalToNumber } from "@/lib/money";
 import { getPrisma } from "@/lib/prisma";
 import { redactPhoneNumbers } from "@/lib/privacy";
@@ -40,11 +40,18 @@ export async function getPublicCampaignMeta(code: string) {
   });
 }
 
-export const getCachedPublicCampaignMeta = unstable_cache(
-  getPublicCampaignMeta,
-  ["public-campaign-meta"],
-  { revalidate: 30 },
-);
+function publicCampaignTag(code: string) {
+  return `public-campaign:${makeCampaignCode(code)}`;
+}
+
+export function getCachedPublicCampaignMeta(code: string) {
+  const normalizedCode = makeCampaignCode(code);
+  return unstable_cache(
+    () => getPublicCampaignMeta(normalizedCode),
+    ["public-campaign-meta", normalizedCode],
+    { revalidate: false, tags: [publicCampaignTag(normalizedCode)] },
+  )();
+}
 
 export async function getPublicCampaignData(code: string): Promise<PublicCampaignData | null> {
   const prisma = getPrisma();
@@ -117,8 +124,33 @@ export async function getPublicCampaignData(code: string): Promise<PublicCampaig
   };
 }
 
-export const getCachedPublicCampaignData = unstable_cache(
-  getPublicCampaignData,
-  ["public-campaign-data"],
-  { revalidate: 30 },
-);
+export function getCachedPublicCampaignData(code: string) {
+  const normalizedCode = makeCampaignCode(code);
+  return unstable_cache(
+    () => getPublicCampaignData(normalizedCode),
+    ["public-campaign-data", normalizedCode],
+    { revalidate: false, tags: [publicCampaignTag(normalizedCode)] },
+  )();
+}
+
+export function invalidatePublicCampaignCache(codes: Iterable<string | null | undefined>) {
+  const normalizedCodes = new Set(
+    [...codes].filter((code): code is string => Boolean(code)).map(makeCampaignCode),
+  );
+
+  for (const code of normalizedCodes) {
+    revalidateTag(publicCampaignTag(code), { expire: 0 });
+  }
+
+  return [...normalizedCodes];
+}
+
+export async function warmPublicCampaignCaches(codes: Iterable<string>) {
+  const normalizedCodes = [...new Set([...codes].map(makeCampaignCode))];
+  await Promise.all(
+    normalizedCodes.flatMap((code) => [
+      getCachedPublicCampaignMeta(code),
+      getCachedPublicCampaignData(code),
+    ]),
+  );
+}

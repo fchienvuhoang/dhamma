@@ -4,6 +4,7 @@ import { z } from "zod";
 import { apiError } from "@/lib/api";
 import { getPrisma } from "@/lib/prisma";
 import { makeCampaignCode, normalizeTransferText } from "@/lib/text";
+import { invalidatePublicCampaignCache, warmPublicCampaignCaches } from "@/lib/public-campaign";
 
 const updateCampaignSchema = z.object({
   code: z.string().min(1),
@@ -25,6 +26,10 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     const prisma = getPrisma();
     const code = makeCampaignCode(body.code);
     const keywords = uniqueKeywords([body.code, ...body.keywords]);
+    const previousCampaign = await prisma.campaign.findUnique({
+      where: { id },
+      select: { code: true },
+    });
 
     const campaign = await prisma.$transaction(async (tx: TransactionClient) => {
       await tx.campaignKeyword.deleteMany({
@@ -53,6 +58,8 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         },
       });
     });
+    const affectedCodes = invalidatePublicCampaignCache([previousCampaign?.code, campaign.code]);
+    await warmPublicCampaignCaches(affectedCodes);
 
     return NextResponse.json(campaign);
   } catch (error) {
@@ -68,6 +75,7 @@ export async function DELETE(_request: Request, context: { params: Promise<{ id:
     const campaign = await prisma.campaign.findUnique({
       where: { id },
       select: {
+        code: true,
         _count: {
           select: {
             transactions: true,
@@ -90,6 +98,7 @@ export async function DELETE(_request: Request, context: { params: Promise<{ id:
     }
 
     await prisma.campaign.delete({ where: { id } });
+    invalidatePublicCampaignCache([campaign.code]);
 
     return NextResponse.json({ ok: true });
   } catch (error) {
