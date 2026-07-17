@@ -146,9 +146,11 @@ export async function reclassifyImportedTransactions() {
   const rules = await loadKeywordRules(prisma);
   const transactions = await prisma.bankTransaction.findMany({
     where: {
-      classificationStatus: {
-        not: "MANUAL",
-      },
+      classificationStatus: { not: "MANUAL" },
+      OR: [
+        { campaignId: null },
+        { campaign: { status: { not: "COMPLETED" } } },
+      ],
     },
     select: {
       id: true,
@@ -214,6 +216,9 @@ async function loadKeywordRules(prisma: PrismaClient): Promise<KeywordRule[]> {
   const keywords = await prisma.campaignKeyword.findMany({
     where: {
       active: true,
+      campaign: {
+        status: { not: "COMPLETED" },
+      },
     },
     include: {
       campaign: {
