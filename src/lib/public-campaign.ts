@@ -4,6 +4,8 @@ import { getPrisma } from "@/lib/prisma";
 import { redactPhoneNumbers } from "@/lib/privacy";
 import { makeCampaignCode } from "@/lib/text";
 
+const PUBLIC_CAMPAIGN_DATA_CACHE_VERSION = "phone-redaction-v2";
+
 export type PublicCampaignData = {
   code: string;
   name: string;
@@ -128,7 +130,7 @@ export function getCachedPublicCampaignData(code: string) {
   const normalizedCode = makeCampaignCode(code);
   return unstable_cache(
     () => getPublicCampaignData(normalizedCode),
-    ["public-campaign-data", normalizedCode],
+    ["public-campaign-data", PUBLIC_CAMPAIGN_DATA_CACHE_VERSION, normalizedCode],
     { revalidate: false, tags: [publicCampaignTag(normalizedCode)] },
   )();
 }
