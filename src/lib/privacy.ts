@@ -9,6 +9,6 @@ export function redactPhoneNumbers(value: string) {
       (digits.startsWith("84") && digits.length === 11) ||
       (/^[35789]/.test(digits) && digits.length === 9);
 
-    return isVietnamPhone ? `${prefix}xxxxxx${digits.slice(-3)}` : match;
+    return isVietnamPhone ? `${prefix}***${digits.slice(-3)}` : match;
   });
 }
