@@ -1,20 +1,14 @@
 import type { Metadata } from "next";
 import { ExternalLink, Eye, Landmark, LockKeyhole } from "lucide-react";
 import { cookies } from "next/headers";
-import { notFound } from "next/navigation";
 import { ReadonlyLoginForm } from "@/components/readonly-login-form";
 import { ReadonlyLogoutButton } from "@/components/readonly-logout-button";
 import {
   READONLY_SESSION_COOKIE,
   isReadonlyViewConfigured,
   verifyReadonlySessionToken,
-  verifyReadonlyViewToken,
 } from "@/lib/auth";
 import { getReadonlyDashboardData } from "@/lib/readonly-dashboard";
-
-type Props = {
-  params: Promise<{ token: string }>;
-};
 
 export const dynamic = "force-dynamic";
 
@@ -32,13 +26,8 @@ export const metadata: Metadata = {
   },
 };
 
-export default async function ReadonlyReportPage({ params }: Props) {
-  const { token } = await params;
+export default async function ReadonlyReportPage() {
   const configured = isReadonlyViewConfigured();
-
-  if (configured && !verifyReadonlyViewToken(token)) {
-    notFound();
-  }
 
   const cookieStore = await cookies();
   const authenticated = await verifyReadonlySessionToken(
@@ -46,7 +35,7 @@ export default async function ReadonlyReportPage({ params }: Props) {
   );
 
   if (!authenticated) {
-    return <ReadonlyLoginScreen token={token} configured={configured} />;
+    return <ReadonlyLoginScreen configured={configured} />;
   }
 
   const data = await getReadonlyDashboardData();
@@ -189,7 +178,7 @@ export default async function ReadonlyReportPage({ params }: Props) {
   );
 }
 
-function ReadonlyLoginScreen({ token, configured }: { token: string; configured: boolean }) {
+function ReadonlyLoginScreen({ configured }: { configured: boolean }) {
   return (
     <main className="flex min-h-screen items-center justify-center bg-[#f7f7f4] px-4 py-8 text-zinc-950">
       <section className="w-full max-w-md rounded-md border border-zinc-200 bg-white p-5 shadow-sm">
@@ -204,7 +193,7 @@ function ReadonlyLoginScreen({ token, configured }: { token: string; configured:
             </p>
           </div>
         </div>
-        <ReadonlyLoginForm token={token} configured={configured} />
+        <ReadonlyLoginForm configured={configured} />
       </section>
     </main>
   );

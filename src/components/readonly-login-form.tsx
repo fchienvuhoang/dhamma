@@ -3,10 +3,10 @@
 import { Loader2, LockKeyhole } from "lucide-react";
 import { useState, type FormEvent } from "react";
 
-export function ReadonlyLoginForm({ token, configured }: { token: string; configured: boolean }) {
+export function ReadonlyLoginForm({ configured }: { configured: boolean }) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(
-    configured ? null : "READONLY_VIEW_TOKEN hoặc READONLY_VIEW_PASSWORD chưa được cấu hình.",
+    configured ? null : "READONLY_VIEW_PASSWORD chưa được cấu hình.",
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -19,13 +19,13 @@ export function ReadonlyLoginForm({ token, configured }: { token: string; config
       const response = await fetch("/api/viewer/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, password }),
+        body: JSON.stringify({ password }),
       });
       const result = (await response.json()) as { ok?: boolean; next?: string; error?: string };
       if (!response.ok) {
         throw new Error(result.error || "Không đăng nhập được.");
       }
-      window.location.assign(result.next || `/bao-cao/${token}`);
+      window.location.assign(result.next || "/bao-cao");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Không đăng nhập được.");
     } finally {

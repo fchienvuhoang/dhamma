@@ -7,11 +7,9 @@ import {
   getReadonlySessionMaxAge,
   isReadonlyViewConfigured,
   verifyReadonlyPassword,
-  verifyReadonlyViewToken,
 } from "@/lib/auth";
 
 const loginSchema = z.object({
-  token: z.string().min(1),
   password: z.string().min(1),
 });
 
@@ -22,11 +20,11 @@ export async function POST(request: Request) {
     }
 
     const body = loginSchema.parse(await request.json());
-    if (!verifyReadonlyViewToken(body.token) || !verifyReadonlyPassword(body.password)) {
-      return NextResponse.json({ error: "Đường dẫn hoặc mật khẩu không đúng." }, { status: 401 });
+    if (!verifyReadonlyPassword(body.password)) {
+      return NextResponse.json({ error: "Mật khẩu không đúng." }, { status: 401 });
     }
 
-    const response = NextResponse.json({ ok: true, next: `/bao-cao/${body.token}` });
+    const response = NextResponse.json({ ok: true, next: "/bao-cao" });
     response.cookies.set(READONLY_SESSION_COOKIE, await createReadonlySessionToken(), {
       httpOnly: true,
       maxAge: getReadonlySessionMaxAge(),

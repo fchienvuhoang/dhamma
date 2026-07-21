@@ -16,20 +16,12 @@ export function getAdminSessionMaxAge() {
 
 export function isReadonlyViewConfigured() {
   return Boolean(
-    process.env.READONLY_VIEW_TOKEN &&
-      process.env.READONLY_VIEW_TOKEN.length >= 32 &&
-      process.env.READONLY_VIEW_PASSWORD &&
-      process.env.READONLY_VIEW_PASSWORD.length >= 8,
+    process.env.READONLY_VIEW_PASSWORD && process.env.READONLY_VIEW_PASSWORD.length >= 8,
   );
 }
 
 export function getReadonlySessionMaxAge() {
   return READONLY_SESSION_MAX_AGE_SECONDS;
-}
-
-export function verifyReadonlyViewToken(token: string) {
-  const expectedToken = process.env.READONLY_VIEW_TOKEN;
-  return Boolean(expectedToken && constantTimeEqual(token, expectedToken));
 }
 
 export function verifyReadonlyPassword(password: string) {
@@ -39,12 +31,11 @@ export function verifyReadonlyPassword(password: string) {
 
 export async function createReadonlySessionToken() {
   const password = process.env.READONLY_VIEW_PASSWORD;
-  const viewToken = process.env.READONLY_VIEW_TOKEN;
-  if (!password || !viewToken) {
+  if (!password) {
     throw new Error("Readonly view is not configured.");
   }
 
-  return hmacHex(password, `${READONLY_SESSION_MESSAGE}:${viewToken}`);
+  return hmacHex(password, READONLY_SESSION_MESSAGE);
 }
 
 export async function verifyReadonlySessionToken(token: string | undefined) {
