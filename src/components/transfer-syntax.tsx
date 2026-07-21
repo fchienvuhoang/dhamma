@@ -7,9 +7,33 @@ export function TransferSyntax({ code }: { code: string }) {
   const [copied, setCopied] = useState(false);
 
   async function copyCode() {
-    await navigator.clipboard.writeText(code);
-    setCopied(true);
-    window.setTimeout(() => setCopied(false), 1800);
+    let didCopy = false;
+
+    if (navigator.clipboard?.writeText) {
+      try {
+        await navigator.clipboard.writeText(code);
+        didCopy = true;
+      } catch {
+        didCopy = false;
+      }
+    }
+
+    if (!didCopy) {
+      const input = document.createElement("textarea");
+      input.value = code;
+      input.setAttribute("readonly", "");
+      input.style.position = "fixed";
+      input.style.opacity = "0";
+      document.body.appendChild(input);
+      input.select();
+      didCopy = document.execCommand("copy");
+      input.remove();
+    }
+
+    if (didCopy) {
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1800);
+    }
   }
 
   return (
