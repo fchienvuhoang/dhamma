@@ -2,6 +2,10 @@ import { decimalToNumber } from "@/lib/money";
 import { getPrisma } from "@/lib/prisma";
 
 export type ReadonlyDashboardData = {
+  latestImport: {
+    fileName: string;
+    importedAt: string;
+  } | null;
   bankAccount: {
     accountNumber: string;
     accountName: string | null;
@@ -26,7 +30,7 @@ export type ReadonlyDashboardData = {
 
 export async function getReadonlyDashboardData(): Promise<ReadonlyDashboardData> {
   const prisma = getPrisma();
-  const [campaigns, transactionSums, bankAccount] = await Promise.all([
+  const [campaigns, transactionSums, bankAccount, latestImport] = await Promise.all([
     prisma.campaign.findMany({
       select: {
         id: true,
@@ -52,6 +56,13 @@ export async function getReadonlyDashboardData(): Promise<ReadonlyDashboardData>
       },
       orderBy: { updatedAt: "desc" },
     }),
+    prisma.importBatch.findFirst({
+      select: {
+        fileName: true,
+        importedAt: true,
+      },
+      orderBy: { importedAt: "desc" },
+    }),
   ]);
 
   const sumsByCampaign = new Map(
@@ -76,6 +87,12 @@ export async function getReadonlyDashboardData(): Promise<ReadonlyDashboardData>
   });
 
   return {
+    latestImport: latestImport
+      ? {
+          fileName: latestImport.fileName,
+          importedAt: latestImport.importedAt.toISOString(),
+        }
+      : null,
     bankAccount: bankAccount
       ? {
           ...bankAccount,

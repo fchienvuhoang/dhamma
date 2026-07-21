@@ -1,5 +1,14 @@
 import type { Metadata } from "next";
-import { ExternalLink, Eye, HandCoins, Landmark, LockKeyhole, Wallet } from "lucide-react";
+import {
+  Clock3,
+  ExternalLink,
+  Eye,
+  FileSpreadsheet,
+  HandCoins,
+  Landmark,
+  LockKeyhole,
+  Wallet,
+} from "lucide-react";
 import { cookies } from "next/headers";
 import { ReadonlyLoginForm } from "@/components/readonly-login-form";
 import { ReadonlyLogoutButton } from "@/components/readonly-logout-button";
@@ -82,6 +91,26 @@ export default async function ReadonlyReportPage() {
             icon={Wallet}
             tone="zinc"
           />
+        </section>
+
+        <section className="flex flex-col gap-3 border-y border-zinc-200 bg-white px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+          <div className="flex min-w-0 items-start gap-3">
+            <span className="mt-0.5 rounded-md bg-zinc-100 p-2 text-zinc-700">
+              <Clock3 className="h-5 w-5" />
+            </span>
+            <div className="min-w-0">
+              <div className="text-sm font-medium text-zinc-600">Cập nhật sao kê gần nhất</div>
+              <div className="mt-1 text-xl font-semibold text-zinc-950 sm:text-2xl">
+                {data.latestImport ? dateTime(data.latestImport.importedAt) : "Chưa có lần import nào"}
+              </div>
+            </div>
+          </div>
+          {data.latestImport ? (
+            <div className="flex min-w-0 items-center gap-2 text-sm text-zinc-500 sm:max-w-sm sm:justify-end">
+              <FileSpreadsheet className="h-4 w-4 shrink-0" />
+              <span className="break-all">{data.latestImport.fileName}</span>
+            </div>
+          ) : null}
         </section>
 
         <section className="overflow-hidden rounded-md border border-zinc-200 bg-white">
@@ -295,4 +324,14 @@ function balanceDetail(account: NonNullable<Awaited<ReturnType<typeof getReadonl
 
 function money(value: number) {
   return `${new Intl.NumberFormat("vi-VN").format(value)} đ`;
+}
+
+function dateTime(value: string) {
+  return new Intl.DateTimeFormat("vi-VN", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value));
 }
