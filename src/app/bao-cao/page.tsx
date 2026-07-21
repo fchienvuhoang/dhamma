@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { ExternalLink, Eye, Landmark, LockKeyhole } from "lucide-react";
+import { ExternalLink, Eye, HandCoins, Landmark, LockKeyhole, Wallet } from "lucide-react";
 import { cookies } from "next/headers";
 import { ReadonlyLoginForm } from "@/components/readonly-login-form";
 import { ReadonlyLogoutButton } from "@/components/readonly-logout-button";
@@ -55,7 +55,7 @@ export default async function ReadonlyReportPage() {
       </header>
 
       <main className="mx-auto max-w-6xl space-y-5 px-4 py-5 sm:px-6 lg:px-8">
-        <section className="grid gap-4 sm:grid-cols-2">
+        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <SummaryStat
             label="Tổng tiền trong tài khoản"
             value={money(data.bankAccount?.currentBalance ?? 0)}
@@ -68,12 +68,26 @@ export default async function ReadonlyReportPage() {
             detail={`${data.campaigns.length.toLocaleString("vi-VN")} thiện pháp`}
             icon={Eye}
           />
+          <SummaryStat
+            label="Tổng chi các thiện pháp"
+            value={money(data.totalCampaignExpenses)}
+            detail={`${data.campaigns.length.toLocaleString("vi-VN")} thiện pháp`}
+            icon={HandCoins}
+            tone="amber"
+          />
+          <SummaryStat
+            label="Còn thừa các thiện pháp"
+            value={money(data.totalCampaignBalance)}
+            detail="Tổng thu trừ tổng chi"
+            icon={Wallet}
+            tone="zinc"
+          />
         </section>
 
         <section className="overflow-hidden rounded-md border border-zinc-200 bg-white">
           <div className="border-b border-zinc-200 px-4 py-4 sm:px-5">
             <h2 className="text-lg font-semibold">Danh sách thiện pháp</h2>
-            <p className="mt-1 text-sm text-zinc-500">Số liệu tổng thu và đường dẫn công khai cho thí chủ.</p>
+            <p className="mt-1 text-sm text-zinc-500">Số liệu tổng thu, tổng chi, còn thừa và đường dẫn công khai cho thí chủ.</p>
           </div>
 
           <div className="divide-y divide-zinc-100 md:hidden">
@@ -92,17 +106,31 @@ export default async function ReadonlyReportPage() {
                 </div>
 
                 <dl className="mt-4 grid grid-cols-2 gap-3 border-y border-zinc-100 py-3">
-                  <div>
+                  <div className="col-span-2 border-b border-zinc-100 pb-3">
                     <dt className="text-xs text-zinc-500">Lượt hùn phước</dt>
                     <dd className="mt-1 text-sm font-medium text-zinc-800">
                       {campaign.transactionCount.toLocaleString("vi-VN")}
                     </dd>
                   </div>
-                  <div className="text-right">
+                  <div>
                     <dt className="text-xs text-zinc-500">Tổng thu</dt>
-                    <dd className="mt-1 whitespace-nowrap text-sm font-semibold text-emerald-700">
+                    <dd className="mt-1 break-words text-sm font-semibold text-emerald-700">
                       {money(campaign.income)}
                     </dd>
+                  </div>
+                  <div className="text-right">
+                    <dt className="text-xs text-zinc-500">Tổng chi</dt>
+                    <dd className="mt-1 break-words text-sm font-semibold text-amber-700">
+                      {money(campaign.expenses)}
+                    </dd>
+                  </div>
+                  <div className="col-span-2 border-t border-zinc-100 pt-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <dt className="text-xs text-zinc-500">Còn thừa</dt>
+                      <dd className="break-words text-sm font-semibold text-zinc-950">
+                        {money(campaign.balance)}
+                      </dd>
+                    </div>
                   </div>
                 </dl>
 
@@ -123,13 +151,15 @@ export default async function ReadonlyReportPage() {
           </div>
 
           <div className="hidden overflow-x-auto md:block">
-            <table className="w-full min-w-[720px] text-left text-sm">
+            <table className="w-full min-w-[980px] text-left text-sm">
               <thead className="bg-zinc-50 text-xs uppercase text-zinc-500">
                 <tr>
                   <th className="px-4 py-3">Thiện pháp</th>
                   <th className="px-4 py-3">Trạng thái</th>
                   <th className="px-4 py-3 text-right">Lượt hùn phước</th>
                   <th className="px-4 py-3 text-right">Tổng thu</th>
+                  <th className="px-4 py-3 text-right">Tổng chi</th>
+                  <th className="px-4 py-3 text-right">Còn thừa</th>
                   <th className="px-4 py-3 text-right">Link công khai</th>
                 </tr>
               </thead>
@@ -149,6 +179,12 @@ export default async function ReadonlyReportPage() {
                     <td className="whitespace-nowrap px-4 py-3 text-right font-semibold text-emerald-700">
                       {money(campaign.income)}
                     </td>
+                    <td className="whitespace-nowrap px-4 py-3 text-right font-semibold text-amber-700">
+                      {money(campaign.expenses)}
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-3 text-right font-semibold text-zinc-950">
+                      {money(campaign.balance)}
+                    </td>
                     <td className="px-4 py-3 text-right">
                       <a
                         href={`/thien-phap/${campaign.code}`}
@@ -164,7 +200,7 @@ export default async function ReadonlyReportPage() {
                 ))}
                 {data.campaigns.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-4 py-10 text-center text-zinc-500">
+                    <td colSpan={7} className="px-4 py-10 text-center text-zinc-500">
                       Chưa có thiện pháp nào.
                     </td>
                   </tr>
@@ -204,12 +240,21 @@ function SummaryStat({
   value,
   detail,
   icon: Icon,
+  tone = "emerald",
 }: {
   label: string;
   value: string;
   detail: string;
   icon: typeof Landmark;
+  tone?: "emerald" | "amber" | "zinc";
 }) {
+  const iconClassName =
+    tone === "amber"
+      ? "bg-amber-50 text-amber-700"
+      : tone === "zinc"
+        ? "bg-zinc-100 text-zinc-700"
+        : "bg-emerald-50 text-emerald-700";
+
   return (
     <div className="rounded-md border border-zinc-200 bg-white p-4">
       <div className="flex items-start justify-between gap-4">
@@ -218,7 +263,7 @@ function SummaryStat({
           <div className="mt-2 text-2xl font-semibold text-zinc-950">{value}</div>
           <div className="mt-1 text-xs text-zinc-500">{detail}</div>
         </div>
-        <span className="rounded-md bg-emerald-50 p-2 text-emerald-700">
+        <span className={`rounded-md p-2 ${iconClassName}`}>
           <Icon className="h-5 w-5" />
         </span>
       </div>

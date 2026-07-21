@@ -10,12 +10,16 @@ export type ReadonlyDashboardData = {
     balanceAsOf: string | null;
   } | null;
   totalCampaignIncome: number;
+  totalCampaignExpenses: number;
+  totalCampaignBalance: number;
   campaigns: {
     id: string;
     code: string;
     name: string;
     status: "ACTIVE" | "PAUSED" | "COMPLETED";
     income: number;
+    expenses: number;
+    balance: number;
     transactionCount: number;
   }[];
 };
@@ -35,7 +39,7 @@ export async function getReadonlyDashboardData(): Promise<ReadonlyDashboardData>
     prisma.bankTransaction.groupBy({
       by: ["campaignId"],
       where: { campaignId: { not: null } },
-      _sum: { creditAmount: true },
+      _sum: { creditAmount: true, debitAmount: true },
       _count: { _all: true },
     }),
     prisma.bankAccount.findFirst({
@@ -55,6 +59,7 @@ export async function getReadonlyDashboardData(): Promise<ReadonlyDashboardData>
       item.campaignId,
       {
         income: decimalToNumber(item._sum.creditAmount),
+        expenses: decimalToNumber(item._sum.debitAmount),
         transactionCount: item._count._all,
       },
     ]),
@@ -64,6 +69,8 @@ export async function getReadonlyDashboardData(): Promise<ReadonlyDashboardData>
     return {
       ...campaign,
       income: sums?.income ?? 0,
+      expenses: sums?.expenses ?? 0,
+      balance: (sums?.income ?? 0) - (sums?.expenses ?? 0),
       transactionCount: sums?.transactionCount ?? 0,
     };
   });
@@ -77,6 +84,14 @@ export async function getReadonlyDashboardData(): Promise<ReadonlyDashboardData>
         }
       : null,
     totalCampaignIncome: campaignRows.reduce((total, campaign) => total + campaign.income, 0),
+    totalCampaignExpenses: campaignRows.reduce(
+      (total, campaign) => total + campaign.expenses,
+      0,
+    ),
+    totalCampaignBalance: campaignRows.reduce(
+      (total, campaign) => total + campaign.balance,
+      0,
+    ),
     campaigns: campaignRows,
   };
 }
