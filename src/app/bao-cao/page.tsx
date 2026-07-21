@@ -64,33 +64,31 @@ export default async function ReadonlyReportPage() {
       </header>
 
       <main className="mx-auto max-w-6xl space-y-5 px-4 py-5 sm:px-6 lg:px-8">
-        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <SummaryStat
+        <section className="space-y-3">
+          <PrimaryBalanceStat
             label="Tổng tiền trong tài khoản"
             value={money(data.bankAccount?.currentBalance ?? 0)}
             detail={data.bankAccount ? balanceDetail(data.bankAccount) : "Chưa có dữ liệu tài khoản"}
-            icon={Landmark}
           />
-          <SummaryStat
-            label="Tổng thu các thiện pháp"
-            value={money(data.totalCampaignIncome)}
-            detail={`${data.campaigns.length.toLocaleString("vi-VN")} thiện pháp`}
-            icon={Eye}
-          />
-          <SummaryStat
-            label="Tổng chi các thiện pháp"
-            value={money(data.totalCampaignExpenses)}
-            detail={`${data.campaigns.length.toLocaleString("vi-VN")} thiện pháp`}
-            icon={HandCoins}
-            tone="amber"
-          />
-          <SummaryStat
-            label="Còn thừa các thiện pháp"
-            value={money(data.totalCampaignBalance)}
-            detail="Tổng thu trừ tổng chi"
-            icon={Wallet}
-            tone="zinc"
-          />
+          <div className="grid gap-3 sm:grid-cols-3">
+            <CompactSummaryStat
+              label="Tổng thu các thiện pháp"
+              value={money(data.totalCampaignIncome)}
+              icon={Eye}
+            />
+            <CompactSummaryStat
+              label="Tổng chi các thiện pháp"
+              value={money(data.totalCampaignExpenses)}
+              icon={HandCoins}
+              tone="amber"
+            />
+            <CompactSummaryStat
+              label="Còn thừa các thiện pháp"
+              value={money(data.totalCampaignBalance)}
+              icon={Wallet}
+              tone="zinc"
+            />
+          </div>
         </section>
 
         <section className="flex flex-col gap-3 border-y border-zinc-200 bg-white px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
@@ -264,16 +262,41 @@ function ReadonlyLoginScreen({ configured }: { configured: boolean }) {
   );
 }
 
-function SummaryStat({
+function PrimaryBalanceStat({
   label,
   value,
   detail,
+}: {
+  label: string;
+  value: string;
+  detail: string;
+}) {
+  return (
+    <div className="rounded-md border border-emerald-200 bg-white p-5 sm:p-6">
+      <div className="flex min-w-0 items-start justify-between gap-4">
+        <div className="min-w-0">
+          <div className="text-sm font-medium text-zinc-600">{label}</div>
+          <div className="mt-2 break-words text-3xl font-semibold text-zinc-950 sm:text-4xl">
+            {value}
+          </div>
+          <div className="mt-2 break-words text-sm text-zinc-500">{detail}</div>
+        </div>
+        <span className="shrink-0 rounded-md bg-emerald-50 p-3 text-emerald-700">
+          <Landmark className="h-6 w-6" />
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function CompactSummaryStat({
+  label,
+  value,
   icon: Icon,
   tone = "emerald",
 }: {
   label: string;
   value: string;
-  detail: string;
   icon: typeof Landmark;
   tone?: "emerald" | "amber" | "zinc";
 }) {
@@ -285,15 +308,14 @@ function SummaryStat({
         : "bg-emerald-50 text-emerald-700";
 
   return (
-    <div className="rounded-md border border-zinc-200 bg-white p-4">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <div className="text-sm text-zinc-500">{label}</div>
-          <div className="mt-2 text-2xl font-semibold text-zinc-950">{value}</div>
-          <div className="mt-1 text-xs text-zinc-500">{detail}</div>
+    <div className="rounded-md border border-zinc-200 bg-white p-3">
+      <div className="flex min-w-0 items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-xs text-zinc-500">{label}</div>
+          <div className="mt-1 break-words text-lg font-semibold text-zinc-950">{value}</div>
         </div>
-        <span className={`rounded-md p-2 ${iconClassName}`}>
-          <Icon className="h-5 w-5" />
+        <span className={`shrink-0 rounded-md p-1.5 ${iconClassName}`}>
+          <Icon className="h-4 w-4" />
         </span>
       </div>
     </div>
@@ -327,11 +349,22 @@ function money(value: number) {
 }
 
 function dateTime(value: string) {
-  return new Intl.DateTimeFormat("vi-VN", {
-    day: "2-digit",
-    month: "2-digit",
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Ho_Chi_Minh",
+    day: "numeric",
+    month: "numeric",
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
-  }).format(new Date(value));
+    hourCycle: "h23",
+  })
+    .formatToParts(new Date(value))
+    .reduce<Record<string, string>>((result, part) => {
+      result[part.type] = part.value;
+      return result;
+    }, {});
+
+  const hour = Number(parts.hour);
+  const period = hour >= 18 ? "tối" : hour >= 12 ? "chiều" : "sáng";
+  return `${parts.day}/${parts.month}/${parts.year} vào lúc ${parts.hour}h${parts.minute} ${period}`;
 }
