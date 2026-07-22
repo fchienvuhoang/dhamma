@@ -4,7 +4,7 @@ import { getPrisma } from "@/lib/prisma";
 import { redactPhoneNumbers } from "@/lib/privacy";
 import { makeCampaignCode } from "@/lib/text";
 
-const PUBLIC_CAMPAIGN_DATA_CACHE_VERSION = "phone-last-three-v4";
+const PUBLIC_CAMPAIGN_DATA_CACHE_VERSION = "transaction-allocations-v1";
 const PUBLIC_CAMPAIGN_LIST_TAG = "public-campaign-list";
 
 export type ActivePublicCampaign = {
@@ -108,7 +108,7 @@ export async function getPublicCampaignData(code: string): Promise<PublicCampaig
     return null;
   }
 
-  const [transactionSums, transactions] = await Promise.all([
+  const [transactionSums, allocationSums, transactions, allocations] = await Promise.all([
     prisma.bankTransaction.aggregate({
       where: {
         campaignId: campaign.id,
@@ -117,6 +117,11 @@ export async function getPublicCampaignData(code: string): Promise<PublicCampaig
         creditAmount: true,
         debitAmount: true,
       },
+      _count: true,
+    }),
+    prisma.transactionAllocation.aggregate({
+      where: { campaignId: campaign.id },
+      _sum: { amount: true },
       _count: true,
     }),
     prisma.bankTransaction.findMany({
@@ -135,10 +140,59 @@ export async function getPublicCampaignData(code: string): Promise<PublicCampaig
       orderBy: [{ transactionDate: "desc" }, { createdAt: "desc" }, { statementRow: "desc" }],
       take: 1000,
     }),
+    prisma.transactionAllocation.findMany({
+      where: { campaignId: campaign.id },
+      select: {
+        id: true,
+        amount: true,
+        transaction: {
+          select: {
+            transactionDate: true,
+            createdAt: true,
+            statementRow: true,
+            description: true,
+          },
+        },
+      },
+      orderBy: { transaction: { transactionDate: "desc" } },
+      take: 1000,
+    }),
   ]);
 
-  const income = decimalToNumber(transactionSums._sum.creditAmount);
+  const income =
+    decimalToNumber(transactionSums._sum.creditAmount) +
+    decimalToNumber(allocationSums._sum.amount);
   const expenses = decimalToNumber(transactionSums._sum.debitAmount);
+  const publicTransactions: PublicCampaignTransaction[] = [
+    ...transactions.map((transaction) => ({
+      id: transaction.id,
+      transactionDate: transaction.transactionDate.toISOString(),
+      createdAt: transaction.createdAt.toISOString(),
+      statementRow: transaction.statementRow,
+      description: redactPhoneNumbers(transaction.description),
+      debitAmount: decimalToNumber(transaction.debitAmount),
+      creditAmount: decimalToNumber(transaction.creditAmount),
+    })),
+    ...allocations.map((allocation) => ({
+      id: allocation.id,
+      transactionDate: allocation.transaction.transactionDate.toISOString(),
+      createdAt: allocation.transaction.createdAt.toISOString(),
+      statementRow: allocation.transaction.statementRow,
+      description: redactPhoneNumbers(allocation.transaction.description),
+      debitAmount: 0,
+      creditAmount: decimalToNumber(allocation.amount),
+    })),
+  ]
+    .sort((left, right) => {
+      const dateDifference =
+        new Date(right.transactionDate).getTime() - new Date(left.transactionDate).getTime();
+      if (dateDifference !== 0) return dateDifference;
+      const createdDifference =
+        new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime();
+      if (createdDifference !== 0) return createdDifference;
+      return (right.statementRow ?? 0) - (left.statementRow ?? 0);
+    })
+    .slice(0, 1000);
 
   return {
     code: campaign.code,
@@ -148,16 +202,8 @@ export async function getPublicCampaignData(code: string): Promise<PublicCampaig
     income,
     expenses,
     balance: income - expenses,
-    transactionCount: transactionSums._count,
-    transactions: transactions.map((transaction) => ({
-      id: transaction.id,
-      transactionDate: transaction.transactionDate.toISOString(),
-      createdAt: transaction.createdAt.toISOString(),
-      statementRow: transaction.statementRow,
-      description: redactPhoneNumbers(transaction.description),
-      debitAmount: decimalToNumber(transaction.debitAmount),
-      creditAmount: decimalToNumber(transaction.creditAmount),
-    })),
+    transactionCount: transactionSums._count + allocationSums._count,
+    transactions: publicTransactions,
   };
 }
 

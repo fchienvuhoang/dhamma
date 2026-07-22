@@ -30,7 +30,7 @@ export type ReadonlyDashboardData = {
 
 export async function getReadonlyDashboardData(): Promise<ReadonlyDashboardData> {
   const prisma = getPrisma();
-  const [campaigns, transactionSums, bankAccount, latestImport] = await Promise.all([
+  const [campaigns, transactionSums, allocationSums, bankAccount, latestImport] = await Promise.all([
     prisma.campaign.findMany({
       select: {
         id: true,
@@ -44,6 +44,11 @@ export async function getReadonlyDashboardData(): Promise<ReadonlyDashboardData>
       by: ["campaignId"],
       where: { campaignId: { not: null } },
       _sum: { creditAmount: true, debitAmount: true },
+      _count: { _all: true },
+    }),
+    prisma.transactionAllocation.groupBy({
+      by: ["campaignId"],
+      _sum: { amount: true },
       _count: { _all: true },
     }),
     prisma.bankAccount.findFirst({
@@ -77,12 +82,15 @@ export async function getReadonlyDashboardData(): Promise<ReadonlyDashboardData>
   );
   const campaignRows = campaigns.map((campaign) => {
     const sums = sumsByCampaign.get(campaign.id);
+    const allocation = allocationSums.find((item) => item.campaignId === campaign.id);
+    const allocatedIncome = decimalToNumber(allocation?._sum.amount);
+    const allocationCount = allocation?._count._all ?? 0;
     return {
       ...campaign,
-      income: sums?.income ?? 0,
+      income: (sums?.income ?? 0) + allocatedIncome,
       expenses: sums?.expenses ?? 0,
-      balance: (sums?.income ?? 0) - (sums?.expenses ?? 0),
-      transactionCount: sums?.transactionCount ?? 0,
+      balance: (sums?.income ?? 0) + allocatedIncome - (sums?.expenses ?? 0),
+      transactionCount: (sums?.transactionCount ?? 0) + allocationCount,
     };
   });
 

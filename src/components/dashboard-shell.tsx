@@ -53,6 +53,11 @@ type CampaignModalState =
       campaign: CampaignSummary;
     };
 
+type AllocationRow = {
+  campaignId: string;
+  amount: string;
+};
+
 const statusLabels = {
   ACTIVE: "Đang chạy",
   PAUSED: "Tạm dừng",
@@ -87,6 +92,7 @@ function Dashboard({ data }: { data: DashboardData }) {
   const [deletingCampaignId, setDeletingCampaignId] = useState<string | null>(null);
   const [pendingTransactionId, setPendingTransactionId] = useState<string | null>(null);
   const [campaignModal, setCampaignModal] = useState<CampaignModalState | null>(null);
+  const [allocationTransaction, setAllocationTransaction] = useState<TransactionSummary | null>(null);
 
   const filteredTransactions = useMemo(() => {
     const normalizedQuery = normalizeTransferText(query);
@@ -94,8 +100,9 @@ function Dashboard({ data }: { data: DashboardData }) {
     return data.transactions.filter((transaction) => {
       const matchesTab =
         activeTab === "all" ||
-        (activeTab === "unmatched" && !transaction.campaign) ||
-        transaction.campaign?.id === activeTab;
+        (activeTab === "unmatched" && !transaction.campaign && transaction.allocations.length === 0) ||
+        transaction.campaign?.id === activeTab ||
+        transaction.allocations.some((allocation) => allocation.campaign.id === activeTab);
 
       if (!matchesTab) {
         return false;
@@ -106,7 +113,7 @@ function Dashboard({ data }: { data: DashboardData }) {
       }
 
       return normalizeTransferText(
-        `${transaction.description} ${transaction.detail} ${transaction.campaign?.name ?? ""}`,
+        `${transaction.description} ${transaction.detail} ${transaction.campaign?.name ?? ""} ${transaction.allocations.map((allocation) => allocation.campaign.name).join(" ")}`,
       ).includes(normalizedQuery);
     }).sort(compareTransactionNewestFirst);
   }, [activeTab, data.transactions, query]);
@@ -255,6 +262,29 @@ function Dashboard({ data }: { data: DashboardData }) {
           body: JSON.stringify({ campaignId }),
         }),
       );
+      router.refresh();
+    } catch (caught) {
+      setError(getErrorMessage(caught));
+    } finally {
+      setPendingTransactionId(null);
+    }
+  }
+
+  async function allocateTransaction(transactionId: string, allocations: { campaignId: string; amount: number }[]) {
+    setError(null);
+    setMessage(null);
+    setPendingTransactionId(transactionId);
+
+    try {
+      await readJson(
+        await fetch(`/api/transactions/${transactionId}/allocations`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ allocations }),
+        }),
+      );
+      setMessage("Đã chia giao dịch cho các thiện pháp.");
+      setAllocationTransaction(null);
       router.refresh();
     } catch (caught) {
       setError(getErrorMessage(caught));
@@ -465,6 +495,7 @@ function Dashboard({ data }: { data: DashboardData }) {
                 campaigns={data.campaigns}
                 pendingTransactionId={pendingTransactionId}
                 onAssign={assignTransaction}
+                onSplit={setAllocationTransaction}
               />
             </Panel>
           )}
@@ -480,6 +511,15 @@ function Dashboard({ data }: { data: DashboardData }) {
             onDelete={handleCampaignDelete}
           />
         ) : null}
+        {allocationTransaction ? (
+          <AllocationModal
+            transaction={allocationTransaction}
+            campaigns={data.campaigns}
+            isSaving={pendingTransactionId === allocationTransaction.id}
+            onClose={() => setAllocationTransaction(null)}
+            onSave={allocateTransaction}
+          />
+        ) : null}
       </main>
     </div>
   );
@@ -490,11 +530,13 @@ function TransactionTable({
   campaigns,
   pendingTransactionId,
   onAssign,
+  onSplit,
 }: {
   transactions: TransactionSummary[];
   campaigns: CampaignSummary[];
   pendingTransactionId: string | null;
   onAssign: (transactionId: string, campaignId: string | null) => void;
+  onSplit: (transaction: TransactionSummary) => void;
 }) {
   return (
     <div className="mt-4 overflow-hidden rounded-md border border-zinc-200">
@@ -515,7 +557,11 @@ function TransactionTable({
             {transactions.map((transaction) => (
               <tr
                 key={transaction.id}
-                className={transaction.campaign ? "hover:bg-zinc-50" : "bg-rose-50/50 hover:bg-rose-50"}
+                className={
+                  transaction.campaign || transaction.allocations.length > 0
+                    ? "hover:bg-zinc-50"
+                    : "bg-rose-50/50 hover:bg-rose-50"
+                }
               >
                 <td className="whitespace-nowrap px-3 py-2 text-zinc-600">{dateOnly(transaction.transactionDate)}</td>
                 <td className="max-w-md px-3 py-2 align-top">
@@ -536,7 +582,18 @@ function TransactionTable({
                   {transaction.debitAmount > 0 ? money(transaction.debitAmount) : "-"}
                 </td>
                 <td className="px-3 py-2">
-                  {transaction.campaign ? (
+                  {transaction.allocations.length > 0 ? (
+                    <div className="flex flex-wrap gap-1">
+                      {transaction.allocations.map((allocation) => (
+                        <span
+                          key={allocation.id}
+                          className="inline-flex rounded-md border border-sky-200 bg-sky-50 px-2 py-1 text-xs font-medium text-sky-700"
+                        >
+                          {allocation.campaign.code}: {money(allocation.amount)}
+                        </span>
+                      ))}
+                    </div>
+                  ) : transaction.campaign ? (
                     <span className="inline-flex rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700">
                       {transaction.campaign.code}
                     </span>
@@ -547,19 +604,34 @@ function TransactionTable({
                   )}
                 </td>
                 <td className="px-3 py-2">
-                  <select
-                    value={transaction.campaign?.id ?? ""}
-                    disabled={pendingTransactionId === transaction.id}
-                    onChange={(event) => onAssign(transaction.id, event.target.value || null)}
-                    className="w-44 rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-xs outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
-                  >
-                    <option value="">Chưa phân loại</option>
-                    {campaigns.map((campaign) => (
-                      <option key={campaign.id} value={campaign.id}>
-                        {campaign.code}
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={transaction.campaign?.id ?? ""}
+                      disabled={pendingTransactionId === transaction.id}
+                      onChange={(event) => onAssign(transaction.id, event.target.value || null)}
+                      className="w-36 rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-xs outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+                    >
+                      <option value="">
+                        {transaction.allocations.length > 0 ? "Đã chia" : "Chưa phân loại"}
                       </option>
-                    ))}
-                  </select>
+                      {campaigns.map((campaign) => (
+                        <option key={campaign.id} value={campaign.id}>
+                          {campaign.code}
+                        </option>
+                      ))}
+                    </select>
+                    {transaction.creditAmount > 0 ? (
+                      <button
+                        type="button"
+                        disabled={pendingTransactionId === transaction.id}
+                        onClick={() => onSplit(transaction)}
+                        className="inline-flex items-center gap-1 rounded-md border border-sky-200 bg-sky-50 px-2 py-1.5 text-xs font-medium text-sky-700 hover:bg-sky-100 disabled:opacity-50"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                        Chia
+                      </button>
+                    ) : null}
+                  </div>
                 </td>
               </tr>
             ))}

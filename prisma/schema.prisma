@@ -73,6 +73,7 @@ model Campaign {
   updatedAt    DateTime          @updatedAt
   keywords     CampaignKeyword[]
   transactions BankTransaction[]
+  allocations  TransactionAllocation[]
   expenses     Expense[]
 
   @@index([status, createdAt])
@@ -113,12 +114,27 @@ model BankTransaction {
   raw                   Json?
   createdAt             DateTime             @default(now())
   updatedAt             DateTime             @updatedAt
+  allocations           TransactionAllocation[]
 
   @@index([transactionDate, statementRow, createdAt])
   @@index([campaignId, transactionDate])
   @@index([campaignId, transactionDate, createdAt, statementRow])
   @@index([classificationStatus])
   @@index([creditAmount])
+}
+
+model TransactionAllocation {
+  id            String          @id @default(cuid())
+  transactionId String
+  transaction   BankTransaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  campaignId    String
+  campaign      Campaign        @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  amount        Decimal         @db.Decimal(18, 2)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  @@unique([transactionId, campaignId])
+  @@index([campaignId, createdAt])
 }
 
 model Expense {

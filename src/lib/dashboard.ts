@@ -82,6 +82,15 @@ export type TransactionSummary = {
     code: string;
     name: string;
   } | null;
+  allocations: {
+    id: string;
+    amount: number;
+    campaign: {
+      id: string;
+      code: string;
+      name: string;
+    };
+  }[];
 };
 
 export async function getDashboardState(): Promise<DashboardState> {
@@ -91,6 +100,7 @@ export async function getDashboardState(): Promise<DashboardState> {
     const [
       campaigns,
       transactionSums,
+      allocationSums,
       overallTransactionSums,
       unmatchedIncome,
       unmatchedDebit,
@@ -123,6 +133,11 @@ export async function getDashboardState(): Promise<DashboardState> {
           _all: true,
         },
       }),
+      prisma.transactionAllocation.groupBy({
+        by: ["campaignId"],
+        _sum: { amount: true },
+        _count: { _all: true },
+      }),
       prisma.bankTransaction.aggregate({
         _sum: {
           creditAmount: true,
@@ -133,6 +148,7 @@ export async function getDashboardState(): Promise<DashboardState> {
       prisma.bankTransaction.aggregate({
         where: {
           campaignId: null,
+          allocations: { none: {} },
           creditAmount: {
             gt: 0,
           },
@@ -145,6 +161,7 @@ export async function getDashboardState(): Promise<DashboardState> {
       prisma.bankTransaction.aggregate({
         where: {
           campaignId: null,
+          allocations: { none: {} },
           debitAmount: {
             gt: 0,
           },
@@ -157,6 +174,7 @@ export async function getDashboardState(): Promise<DashboardState> {
       prisma.bankTransaction.count({
         where: {
           campaignId: null,
+          allocations: { none: {} },
         },
       }),
       prisma.bankTransaction.findMany({
@@ -167,6 +185,10 @@ export async function getDashboardState(): Promise<DashboardState> {
               code: true,
               name: true,
             },
+          },
+          allocations: {
+            include: { campaign: { select: { id: true, code: true, name: true } } },
+            orderBy: { createdAt: "asc" },
           },
         },
         orderBy: [{ transactionDate: "desc" }, { createdAt: "desc" }, { statementRow: "desc" }],
@@ -185,6 +207,10 @@ export async function getDashboardState(): Promise<DashboardState> {
               code: true,
               name: true,
             },
+          },
+          allocations: {
+            include: { campaign: { select: { id: true, code: true, name: true } } },
+            orderBy: { createdAt: "asc" },
           },
         },
         orderBy: [{ transactionDate: "desc" }, { createdAt: "desc" }, { statementRow: "desc" }],
@@ -208,10 +234,20 @@ export async function getDashboardState(): Promise<DashboardState> {
         },
       ]),
     );
+    const allocationsByCampaign = new Map(
+      allocationSums.map((item) => [
+        item.campaignId,
+        {
+          income: decimalToNumber(item._sum.amount),
+          count: item._count._all,
+        },
+      ]),
+    );
 
     const campaignSummaries = campaigns.map((campaign) => {
       const tx = txByCampaign.get(campaign.id);
-      const income = tx?.income ?? 0;
+      const allocation = allocationsByCampaign.get(campaign.id);
+      const income = (tx?.income ?? 0) + (allocation?.income ?? 0);
       const debit = tx?.debit ?? 0;
       const expensesAmount = debit;
 
@@ -225,7 +261,7 @@ export async function getDashboardState(): Promise<DashboardState> {
         debit,
         expenses: expensesAmount,
         balance: income - expensesAmount,
-        transactionCount: campaign._count.transactions,
+        transactionCount: (tx?.count ?? 0) + (allocation?.count ?? 0),
         keywords: campaign.keywords.map((keyword) => ({
           id: keyword.id,
           keyword: keyword.keyword,
@@ -279,6 +315,11 @@ export async function getDashboardState(): Promise<DashboardState> {
           matchedKeyword: transaction.matchedKeyword,
           classificationStatus: transaction.classificationStatus,
           campaign: transaction.campaign,
+          allocations: transaction.allocations.map((allocation) => ({
+            id: allocation.id,
+            amount: decimalToNumber(allocation.amount),
+            campaign: allocation.campaign,
+          })),
         })),
         debitTransactions: debitTransactions.map((transaction) => ({
           id: transaction.id,
@@ -294,6 +335,11 @@ export async function getDashboardState(): Promise<DashboardState> {
           matchedKeyword: transaction.matchedKeyword,
           classificationStatus: transaction.classificationStatus,
           campaign: transaction.campaign,
+          allocations: transaction.allocations.map((allocation) => ({
+            id: allocation.id,
+            amount: decimalToNumber(allocation.amount),
+            campaign: allocation.campaign,
+          })),
         })),
         latestImport: latestImport
           ? {

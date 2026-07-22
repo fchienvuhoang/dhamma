@@ -19,20 +19,27 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
 
     const previousTransaction = await prisma.bankTransaction.findUnique({
       where: { id },
-      select: { campaign: { select: { code: true } } },
-    });
-    const transaction = await prisma.bankTransaction.update({
-      where: { id },
-      data: {
-        campaignId: body.campaignId || null,
-        matchedKeyword: body.campaignId ? "Gán thủ công" : null,
-        classificationStatus: body.campaignId ? "MANUAL" : "UNMATCHED",
+      select: {
+        campaign: { select: { code: true } },
+        allocations: { select: { campaign: { select: { code: true } } } },
       },
-      include: { campaign: { select: { code: true } } },
+    });
+    const transaction = await prisma.$transaction(async (tx) => {
+      await tx.transactionAllocation.deleteMany({ where: { transactionId: id } });
+      return tx.bankTransaction.update({
+        where: { id },
+        data: {
+          campaignId: body.campaignId || null,
+          matchedKeyword: body.campaignId ? "Gán thủ công" : null,
+          classificationStatus: body.campaignId ? "MANUAL" : "UNMATCHED",
+        },
+        include: { campaign: { select: { code: true } } },
+      });
     });
 
     const affectedCodes = invalidatePublicCampaignCache([
       previousTransaction?.campaign?.code,
+      ...(previousTransaction?.allocations.map((allocation) => allocation.campaign.code) ?? []),
       transaction.campaign?.code,
     ]);
     await warmPublicCampaignCaches(affectedCodes);

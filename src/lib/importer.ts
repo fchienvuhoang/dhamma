@@ -152,6 +152,7 @@ export async function reclassifyImportedTransactions() {
   const transactions = await prisma.bankTransaction.findMany({
     where: {
       classificationStatus: { not: "MANUAL" },
+      allocations: { none: {} },
       OR: [
         { campaignId: null },
         { campaign: { status: { not: "COMPLETED" } } },
