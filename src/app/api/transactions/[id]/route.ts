@@ -22,6 +22,8 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       where: { id },
       select: {
         debitAmount: true,
+        campaignId: true,
+        outflowType: true,
         campaign: { select: { code: true } },
         allocations: { select: { campaign: { select: { code: true } } } },
       },
@@ -33,6 +35,12 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       );
     }
     const transaction = await prisma.$transaction(async (tx) => {
+      const campaignChanged =
+        body.campaignId !== undefined && (body.campaignId || null) !== previousTransaction?.campaignId;
+      const noLongerRefund = body.outflowType !== undefined && body.outflowType !== "REFUND";
+      if (campaignChanged || noLongerRefund) {
+        await tx.transactionRefundAllocation.deleteMany({ where: { refundTransactionId: id } });
+      }
       await tx.transactionAllocation.deleteMany({ where: { transactionId: id } });
       return tx.bankTransaction.update({
         where: { id },

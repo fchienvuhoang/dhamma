@@ -4,7 +4,7 @@ import { getPrisma } from "@/lib/prisma";
 import { redactPhoneNumbers } from "@/lib/privacy";
 import { makeCampaignCode } from "@/lib/text";
 
-const PUBLIC_CAMPAIGN_DATA_CACHE_VERSION = "campaign-outflow-type-v1";
+const PUBLIC_CAMPAIGN_DATA_CACHE_VERSION = "refund-links-v1";
 const PUBLIC_CAMPAIGN_LIST_TAG = "public-campaign-list";
 
 export type ActivePublicCampaign = {
@@ -20,6 +20,7 @@ export type PublicCampaignData = {
   status: "ACTIVE" | "PAUSED" | "COMPLETED";
   income: number;
   expenses: number;
+  refunds: number;
   balance: number;
   transactionCount: number;
   transactions: PublicCampaignTransaction[];
@@ -109,7 +110,7 @@ export async function getPublicCampaignData(code: string): Promise<PublicCampaig
     return null;
   }
 
-  const [transactionSums, allocationSums, transactions, allocations] = await Promise.all([
+  const [transactionSums, refundSums, allocationSums, transactions, allocations] = await Promise.all([
     prisma.bankTransaction.aggregate({
       where: {
         campaignId: campaign.id,
@@ -119,6 +120,11 @@ export async function getPublicCampaignData(code: string): Promise<PublicCampaig
         creditAmount: true,
         debitAmount: true,
       },
+      _count: true,
+    }),
+    prisma.bankTransaction.aggregate({
+      where: { campaignId: campaign.id, outflowType: "REFUND" },
+      _sum: { debitAmount: true },
       _count: true,
     }),
     prisma.transactionAllocation.aggregate({
@@ -166,6 +172,7 @@ export async function getPublicCampaignData(code: string): Promise<PublicCampaig
     decimalToNumber(transactionSums._sum.creditAmount) +
     decimalToNumber(allocationSums._sum.amount);
   const expenses = decimalToNumber(transactionSums._sum.debitAmount);
+  const refunds = decimalToNumber(refundSums._sum.debitAmount);
   const publicTransactions: PublicCampaignTransaction[] = [
     ...transactions.map((transaction) => ({
       id: transaction.id,
@@ -206,7 +213,8 @@ export async function getPublicCampaignData(code: string): Promise<PublicCampaig
     status: campaign.status,
     income,
     expenses,
-    balance: income - expenses,
+    refunds,
+    balance: income - expenses - refunds,
     transactionCount: transactionSums._count + allocationSums._count,
     transactions: publicTransactions,
   };

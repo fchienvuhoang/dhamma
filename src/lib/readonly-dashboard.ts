@@ -15,6 +15,7 @@ export type ReadonlyDashboardData = {
   } | null;
   totalCampaignIncome: number;
   totalCampaignExpenses: number;
+  totalCampaignRefunds: number;
   totalCampaignBalance: number;
   campaigns: {
     id: string;
@@ -23,6 +24,7 @@ export type ReadonlyDashboardData = {
     status: "ACTIVE" | "PAUSED" | "COMPLETED";
     income: number;
     expenses: number;
+    refunds: number;
     balance: number;
     transactionCount: number;
   }[];
@@ -30,7 +32,7 @@ export type ReadonlyDashboardData = {
 
 export async function getReadonlyDashboardData(): Promise<ReadonlyDashboardData> {
   const prisma = getPrisma();
-  const [campaigns, transactionSums, allocationSums, bankAccount, latestImport] = await Promise.all([
+  const [campaigns, transactionSums, refundSums, allocationSums, bankAccount, latestImport] = await Promise.all([
     prisma.campaign.findMany({
       select: {
         id: true,
@@ -45,6 +47,11 @@ export async function getReadonlyDashboardData(): Promise<ReadonlyDashboardData>
       where: { campaignId: { not: null }, outflowType: "DONATION" },
       _sum: { creditAmount: true, debitAmount: true },
       _count: { _all: true },
+    }),
+    prisma.bankTransaction.groupBy({
+      by: ["campaignId"],
+      where: { campaignId: { not: null }, outflowType: "REFUND" },
+      _sum: { debitAmount: true },
     }),
     prisma.transactionAllocation.groupBy({
       by: ["campaignId"],
@@ -83,13 +90,16 @@ export async function getReadonlyDashboardData(): Promise<ReadonlyDashboardData>
   const campaignRows = campaigns.map((campaign) => {
     const sums = sumsByCampaign.get(campaign.id);
     const allocation = allocationSums.find((item) => item.campaignId === campaign.id);
+    const refund = refundSums.find((item) => item.campaignId === campaign.id);
     const allocatedIncome = decimalToNumber(allocation?._sum.amount);
+    const refunds = decimalToNumber(refund?._sum.debitAmount);
     const allocationCount = allocation?._count._all ?? 0;
     return {
       ...campaign,
       income: (sums?.income ?? 0) + allocatedIncome,
       expenses: sums?.expenses ?? 0,
-      balance: (sums?.income ?? 0) + allocatedIncome - (sums?.expenses ?? 0),
+      refunds,
+      balance: (sums?.income ?? 0) + allocatedIncome - (sums?.expenses ?? 0) - refunds,
       transactionCount: (sums?.transactionCount ?? 0) + allocationCount,
     };
   });
@@ -113,6 +123,7 @@ export async function getReadonlyDashboardData(): Promise<ReadonlyDashboardData>
       (total, campaign) => total + campaign.expenses,
       0,
     ),
+    totalCampaignRefunds: campaignRows.reduce((total, campaign) => total + campaign.refunds, 0),
     totalCampaignBalance: campaignRows.reduce(
       (total, campaign) => total + campaign.balance,
       0,

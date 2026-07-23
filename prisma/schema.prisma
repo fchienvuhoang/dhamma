@@ -121,12 +121,28 @@ model BankTransaction {
   createdAt             DateTime             @default(now())
   updatedAt             DateTime             @updatedAt
   allocations           TransactionAllocation[]
+  refundLinks            TransactionRefundAllocation[] @relation("RefundTransaction")
+  receivedRefundLinks    TransactionRefundAllocation[] @relation("OriginalTransaction")
 
   @@index([transactionDate, statementRow, createdAt])
   @@index([campaignId, transactionDate])
   @@index([campaignId, transactionDate, createdAt, statementRow])
   @@index([classificationStatus])
   @@index([creditAmount])
+}
+
+model TransactionRefundAllocation {
+  id                    String          @id @default(cuid())
+  refundTransactionId   String
+  refundTransaction     BankTransaction @relation("RefundTransaction", fields: [refundTransactionId], references: [id], onDelete: Cascade)
+  originalTransactionId String
+  originalTransaction   BankTransaction @relation("OriginalTransaction", fields: [originalTransactionId], references: [id], onDelete: Restrict)
+  amount                Decimal         @db.Decimal(18, 2)
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+
+  @@unique([refundTransactionId, originalTransactionId])
+  @@index([originalTransactionId, createdAt])
 }
 
 model TransactionAllocation {

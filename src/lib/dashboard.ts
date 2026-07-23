@@ -54,6 +54,7 @@ export type CampaignSummary = {
   income: number;
   debit: number;
   expenses: number;
+  refunds: number;
   balance: number;
   transactionCount: number;
   keywords: {
@@ -92,6 +93,16 @@ export type TransactionSummary = {
       name: string;
     };
   }[];
+  refundLinks: {
+    id: string;
+    amount: number;
+    originalTransaction: {
+      id: string;
+      transactionDate: string;
+      description: string;
+      creditAmount: number;
+    };
+  }[];
 };
 
 export async function getDashboardState(): Promise<DashboardState> {
@@ -101,6 +112,7 @@ export async function getDashboardState(): Promise<DashboardState> {
     const [
       campaigns,
       transactionSums,
+      refundSums,
       allocationSums,
       overallTransactionSums,
       unmatchedIncome,
@@ -134,6 +146,12 @@ export async function getDashboardState(): Promise<DashboardState> {
         _count: {
           _all: true,
         },
+      }),
+      prisma.bankTransaction.groupBy({
+        by: ["campaignId"],
+        where: { outflowType: "REFUND", campaignId: { not: null } },
+        _sum: { debitAmount: true },
+        _count: { _all: true },
       }),
       prisma.transactionAllocation.groupBy({
         by: ["campaignId"],
@@ -192,6 +210,14 @@ export async function getDashboardState(): Promise<DashboardState> {
             include: { campaign: { select: { id: true, code: true, name: true } } },
             orderBy: { createdAt: "asc" },
           },
+          refundLinks: {
+            include: {
+              originalTransaction: {
+                select: { id: true, transactionDate: true, description: true, creditAmount: true },
+              },
+            },
+            orderBy: { createdAt: "asc" },
+          },
         },
         orderBy: [{ transactionDate: "desc" }, { createdAt: "desc" }, { statementRow: "desc" }],
         take: 500,
@@ -212,6 +238,14 @@ export async function getDashboardState(): Promise<DashboardState> {
           },
           allocations: {
             include: { campaign: { select: { id: true, code: true, name: true } } },
+            orderBy: { createdAt: "asc" },
+          },
+          refundLinks: {
+            include: {
+              originalTransaction: {
+                select: { id: true, transactionDate: true, description: true, creditAmount: true },
+              },
+            },
             orderBy: { createdAt: "asc" },
           },
         },
@@ -245,13 +279,24 @@ export async function getDashboardState(): Promise<DashboardState> {
         },
       ]),
     );
+    const refundsByCampaign = new Map(
+      refundSums.map((item) => [
+        item.campaignId,
+        {
+          amount: decimalToNumber(item._sum.debitAmount),
+          count: item._count._all,
+        },
+      ]),
+    );
 
     const campaignSummaries = campaigns.map((campaign) => {
       const tx = txByCampaign.get(campaign.id);
       const allocation = allocationsByCampaign.get(campaign.id);
+      const refund = refundsByCampaign.get(campaign.id);
       const income = (tx?.income ?? 0) + (allocation?.income ?? 0);
       const debit = tx?.debit ?? 0;
       const expensesAmount = debit;
+      const refunds = refund?.amount ?? 0;
 
       return {
         id: campaign.id,
@@ -262,8 +307,9 @@ export async function getDashboardState(): Promise<DashboardState> {
         income,
         debit,
         expenses: expensesAmount,
-        balance: income - expensesAmount,
-        transactionCount: (tx?.count ?? 0) + (allocation?.count ?? 0),
+        refunds,
+        balance: income - expensesAmount - refunds,
+        transactionCount: (tx?.count ?? 0) + (refund?.count ?? 0) + (allocation?.count ?? 0),
         keywords: campaign.keywords.map((keyword) => ({
           id: keyword.id,
           keyword: keyword.keyword,
@@ -323,6 +369,15 @@ export async function getDashboardState(): Promise<DashboardState> {
             amount: decimalToNumber(allocation.amount),
             campaign: allocation.campaign,
           })),
+          refundLinks: transaction.refundLinks.map((link) => ({
+            id: link.id,
+            amount: decimalToNumber(link.amount),
+            originalTransaction: {
+              ...link.originalTransaction,
+              transactionDate: link.originalTransaction.transactionDate.toISOString(),
+              creditAmount: decimalToNumber(link.originalTransaction.creditAmount),
+            },
+          })),
         })),
         debitTransactions: debitTransactions.map((transaction) => ({
           id: transaction.id,
@@ -343,6 +398,15 @@ export async function getDashboardState(): Promise<DashboardState> {
             id: allocation.id,
             amount: decimalToNumber(allocation.amount),
             campaign: allocation.campaign,
+          })),
+          refundLinks: transaction.refundLinks.map((link) => ({
+            id: link.id,
+            amount: decimalToNumber(link.amount),
+            originalTransaction: {
+              ...link.originalTransaction,
+              transactionDate: link.originalTransaction.transactionDate.toISOString(),
+              creditAmount: decimalToNumber(link.originalTransaction.creditAmount),
+            },
           })),
         })),
         latestImport: latestImport

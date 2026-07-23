@@ -9,6 +9,7 @@ import {
   FileSpreadsheet,
   LogOut,
   Loader2,
+  Link2,
   Plus,
   RefreshCw,
   Search,
@@ -20,7 +21,7 @@ import {
   X,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import type React from "react";
 import type {
   CampaignSummary,
@@ -58,6 +59,27 @@ type AllocationRow = {
   amount: string;
 };
 
+type RefundLinkRow = {
+  originalTransactionId: string;
+  amount: string;
+};
+
+type RefundCandidate = {
+  id: string;
+  transactionDate: string;
+  description: string;
+  detail: string;
+  originalAmount: number;
+  refundedAmount: number;
+  refundableAmount: number;
+};
+
+type RefundCandidatesResponse = {
+  refundAmount: number;
+  links: { originalTransactionId: string; amount: number }[];
+  candidates: RefundCandidate[];
+};
+
 const statusLabels = {
   ACTIVE: "Đang chạy",
   PAUSED: "Tạm dừng",
@@ -93,6 +115,7 @@ function Dashboard({ data }: { data: DashboardData }) {
   const [pendingTransactionId, setPendingTransactionId] = useState<string | null>(null);
   const [campaignModal, setCampaignModal] = useState<CampaignModalState | null>(null);
   const [allocationTransaction, setAllocationTransaction] = useState<TransactionSummary | null>(null);
+  const [refundTransaction, setRefundTransaction] = useState<TransactionSummary | null>(null);
 
   const filteredTransactions = useMemo(() => {
     const normalizedQuery = normalizeTransferText(query);
@@ -297,6 +320,32 @@ function Dashboard({ data }: { data: DashboardData }) {
     }
   }
 
+  async function saveRefundLinks(
+    transactionId: string,
+    links: { originalTransactionId: string; amount: number }[],
+  ) {
+    setError(null);
+    setMessage(null);
+    setPendingTransactionId(transactionId);
+
+    try {
+      await readJson(
+        await fetch(`/api/transactions/${transactionId}/refund-links`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ links }),
+        }),
+      );
+      setMessage("Đã liên kết khoản hoàn với khoản nhận ban đầu.");
+      setRefundTransaction(null);
+      router.refresh();
+    } catch (caught) {
+      setError(getErrorMessage(caught));
+    } finally {
+      setPendingTransactionId(null);
+    }
+  }
+
   async function handleLogout() {
     await fetch("/api/auth/logout", { method: "POST" });
     router.push("/dang-nhap");
@@ -449,6 +498,7 @@ function Dashboard({ data }: { data: DashboardData }) {
                   campaigns={data.campaigns}
                   pendingTransactionId={pendingTransactionId}
                   onAssign={assignTransaction}
+                  onLinkRefund={setRefundTransaction}
                 />
               </Panel>
             </>
@@ -522,6 +572,14 @@ function Dashboard({ data }: { data: DashboardData }) {
             isSaving={pendingTransactionId === allocationTransaction.id}
             onClose={() => setAllocationTransaction(null)}
             onSave={allocateTransaction}
+          />
+        ) : null}
+        {refundTransaction ? (
+          <RefundLinkModal
+            transaction={refundTransaction}
+            isSaving={pendingTransactionId === refundTransaction.id}
+            onClose={() => setRefundTransaction(null)}
+            onSave={saveRefundLinks}
           />
         ) : null}
       </main>
@@ -672,6 +730,7 @@ function CampaignTable({
               <th className="px-3 py-2">Từ khóa</th>
               <th className="px-3 py-2 text-right">Tổng thu</th>
               <th className="px-3 py-2 text-right">Tổng chi</th>
+              <th className="px-3 py-2 text-right">Hoàn lại</th>
               <th className="px-3 py-2 text-right">Còn lại</th>
               <th className="px-3 py-2 text-right">GD</th>
               <th className="px-3 py-2 text-right">Link công khai</th>
@@ -749,6 +808,9 @@ function CampaignTable({
                 <td className="whitespace-nowrap px-3 py-2 text-right text-amber-700">
                   {money(campaign.expenses)}
                 </td>
+                <td className="whitespace-nowrap px-3 py-2 text-right text-rose-700">
+                  {money(campaign.refunds)}
+                </td>
                 <td className="whitespace-nowrap px-3 py-2 text-right font-semibold text-zinc-950">
                   {money(campaign.balance)}
                 </td>
@@ -774,7 +836,7 @@ function CampaignTable({
             ))}
             {campaigns.length === 0 ? (
               <tr>
-                <td colSpan={10} className="px-3 py-8 text-center text-zinc-500">
+                <td colSpan={11} className="px-3 py-8 text-center text-zinc-500">
                   Chưa có thiện pháp nào.
                 </td>
               </tr>
@@ -791,11 +853,13 @@ function DebitTransactionTable({
   campaigns,
   pendingTransactionId,
   onAssign,
+  onLinkRefund,
 }: {
   transactions: TransactionSummary[];
   campaigns: CampaignSummary[];
   pendingTransactionId: string | null;
   onAssign: (transactionId: string, campaignId: string | null, outflowType?: "DONATION" | "REFUND") => void;
+  onLinkRefund: (transaction: TransactionSummary) => void;
 }) {
   return (
     <div className="mt-4 overflow-hidden rounded-md border border-zinc-200">
@@ -809,7 +873,7 @@ function DebitTransactionTable({
               <th className="px-3 py-2 text-right">Nợ</th>
               <th className="px-3 py-2">Thiện pháp</th>
               <th className="px-3 py-2">Loại chuyển ra</th>
-              <th className="px-3 py-2">Gán</th>
+              <th className="px-3 py-2">Gán / liên kết</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-100 bg-white">
@@ -861,21 +925,35 @@ function DebitTransactionTable({
                   </select>
                 </td>
                 <td className="px-3 py-2 align-top">
-                  <select
-                    value={transaction.campaign?.id ?? ""}
-                    disabled={pendingTransactionId === transaction.id}
-                    onChange={(event) =>
-                      onAssign(transaction.id, event.target.value || null, transaction.outflowType)
-                    }
-                    className="w-44 rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-xs outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
-                  >
-                    <option value="">Chưa gán</option>
-                    {campaigns.map((campaign) => (
-                      <option key={campaign.id} value={campaign.id}>
-                        {campaign.code}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="flex flex-col items-start gap-2">
+                    <select
+                      value={transaction.campaign?.id ?? ""}
+                      disabled={pendingTransactionId === transaction.id}
+                      onChange={(event) =>
+                        onAssign(transaction.id, event.target.value || null, transaction.outflowType)
+                      }
+                      className="w-44 rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-xs outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+                    >
+                      <option value="">Chưa gán</option>
+                      {campaigns.map((campaign) => (
+                        <option key={campaign.id} value={campaign.id}>
+                          {campaign.code}
+                        </option>
+                      ))}
+                    </select>
+                    {transaction.outflowType === "REFUND" && transaction.campaign ? (
+                      <button
+                        type="button"
+                        onClick={() => onLinkRefund(transaction)}
+                        className="inline-flex items-center gap-1.5 rounded-md border border-sky-200 bg-sky-50 px-2 py-1.5 text-xs font-medium text-sky-700 hover:bg-sky-100"
+                      >
+                        <Link2 className="h-3.5 w-3.5" />
+                        {transaction.refundLinks.length > 0
+                          ? `Đã liên kết ${money(transaction.refundLinks.reduce((sum, link) => sum + link.amount, 0))}`
+                          : "Liên kết khoản nhận"}
+                      </button>
+                    ) : null}
+                  </div>
                 </td>
               </tr>
             ))}
@@ -982,6 +1060,240 @@ function FundSummaryTable({ data }: { data: DashboardData }) {
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+function RefundLinkModal({
+  transaction,
+  isSaving,
+  onClose,
+  onSave,
+}: {
+  transaction: TransactionSummary;
+  isSaving: boolean;
+  onClose: () => void;
+  onSave: (
+    transactionId: string,
+    links: { originalTransactionId: string; amount: number }[],
+  ) => Promise<void>;
+}) {
+  const [data, setData] = useState<RefundCandidatesResponse | null>(null);
+  const [rows, setRows] = useState<RefundLinkRow[]>([]);
+  const [query, setQuery] = useState("");
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    void fetch(`/api/transactions/${transaction.id}/refund-links`)
+      .then((response) => readJson<RefundCandidatesResponse>(response))
+      .then((response) => {
+        if (!active) return;
+        setData(response);
+        setRows(
+          response.links.length > 0
+            ? response.links.map((link) => ({
+                originalTransactionId: link.originalTransactionId,
+                amount: String(link.amount),
+              }))
+            : [{ originalTransactionId: "", amount: "" }],
+        );
+      })
+      .catch((error) => {
+        if (active) setLoadError(getErrorMessage(error));
+      });
+    return () => {
+      active = false;
+    };
+  }, [transaction.id]);
+
+  const normalizedQuery = normalizeTransferText(query);
+  const visibleCandidates = (data?.candidates ?? []).filter((candidate) =>
+    !normalizedQuery || normalizeTransferText(
+      `${candidate.description} ${candidate.detail} ${dateOnly(candidate.transactionDate)}`,
+    ).includes(normalizedQuery),
+  );
+  const linkedTotal = rows.reduce((sum, row) => sum + (Number(row.amount) || 0), 0);
+  const selectedIds = rows.map((row) => row.originalTransactionId).filter(Boolean);
+  const isValid = Boolean(data) && rows.length > 0 && rows.every((row) => {
+    const candidate = data?.candidates.find((item) => item.id === row.originalTransactionId);
+    return candidate && Number(row.amount) > 0 && Number(row.amount) <= candidate.refundableAmount;
+  }) && new Set(selectedIds).size === selectedIds.length &&
+    Math.round(linkedTotal * 100) === Math.round((data?.refundAmount ?? 0) * 100);
+
+  function updateRow(index: number, patch: Partial<RefundLinkRow>) {
+    setRows((current) => current.map((row, rowIndex) => rowIndex === index ? { ...row, ...patch } : row));
+  }
+
+  function selectCandidate(index: number, candidateId: string) {
+    const candidate = data?.candidates.find((item) => item.id === candidateId);
+    const otherTotal = rows.reduce(
+      (sum, row, rowIndex) => sum + (rowIndex === index ? 0 : Number(row.amount) || 0),
+      0,
+    );
+    const amount = candidate
+      ? Math.min(candidate.refundableAmount, Math.max(0, (data?.refundAmount ?? 0) - otherTotal))
+      : 0;
+    updateRow(index, {
+      originalTransactionId: candidateId,
+      amount: amount > 0 ? String(amount) : "",
+    });
+  }
+
+  return (
+    <div className="fixed inset-0 z-[70] flex items-start justify-center overflow-y-auto bg-zinc-950/40 px-3 py-5 sm:px-4 sm:py-8">
+      <div className="w-full max-w-4xl rounded-md border border-zinc-200 bg-white shadow-xl">
+        <div className="flex items-start justify-between gap-3 border-b border-zinc-200 px-4 py-4 sm:px-5">
+          <div className="min-w-0">
+            <h2 className="text-base font-semibold text-zinc-950">Liên kết khoản hoàn</h2>
+            <p className="mt-1 text-sm text-zinc-500">
+              Khoản hoàn: <strong className="text-amber-700">{money(transaction.debitAmount)}</strong>
+              {transaction.campaign ? ` · ${transaction.campaign.code}` : ""}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-zinc-200 text-zinc-600 hover:bg-zinc-50"
+            aria-label="Đóng"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <form
+          className="space-y-4 px-4 py-4 sm:px-5"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (!isValid) return;
+            void onSave(transaction.id, rows.map((row) => ({
+              originalTransactionId: row.originalTransactionId,
+              amount: Number(row.amount),
+            })));
+          }}
+        >
+          <div className="rounded-md bg-zinc-50 p-3 text-sm leading-6 text-zinc-700">
+            {transaction.description}
+          </div>
+
+          {loadError ? (
+            <div className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{loadError}</div>
+          ) : !data ? (
+            <div className="flex items-center justify-center gap-2 py-10 text-sm text-zinc-500">
+              <Loader2 className="h-4 w-4 animate-spin" /> Đang tải các khoản nhận...
+            </div>
+          ) : (
+            <>
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-zinc-400" />
+                <input
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="Tìm thí chủ, nội dung chuyển khoản, mã giao dịch..."
+                  className="w-full rounded-md border border-zinc-300 bg-white py-2 pl-9 pr-3 text-sm outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+                />
+              </div>
+
+              <div className="space-y-3">
+                {rows.map((row, index) => {
+                  const selectedCandidate = data.candidates.find((candidate) => candidate.id === row.originalTransactionId);
+                  const options = selectedCandidate && !visibleCandidates.some((candidate) => candidate.id === selectedCandidate.id)
+                    ? [selectedCandidate, ...visibleCandidates]
+                    : visibleCandidates;
+                  return (
+                    <div key={index} className="rounded-md border border-zinc-200 p-3">
+                      <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_180px_auto]">
+                        <select
+                          value={row.originalTransactionId}
+                          onChange={(event) => selectCandidate(index, event.target.value)}
+                          className="min-w-0 rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-emerald-600"
+                          required
+                        >
+                          <option value="">Chọn khoản nhận vào</option>
+                          {options.map((candidate) => (
+                            <option
+                              key={candidate.id}
+                              value={candidate.id}
+                              disabled={
+                                (selectedIds.includes(candidate.id) && candidate.id !== row.originalTransactionId) ||
+                                candidate.refundableAmount <= 0
+                              }
+                            >
+                              {dateOnly(candidate.transactionDate)} · {money(candidate.refundableAmount)} còn lại · {candidate.description}
+                            </option>
+                          ))}
+                        </select>
+                        <input
+                          type="number"
+                          min="1"
+                          step="1"
+                          max={selectedCandidate?.refundableAmount}
+                          value={row.amount}
+                          onChange={(event) => updateRow(index, { amount: event.target.value })}
+                          placeholder="Số tiền hoàn"
+                          className="min-w-0 rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-emerald-600"
+                          required
+                        />
+                        <button
+                          type="button"
+                          disabled={rows.length <= 1}
+                          onClick={() => setRows((current) => current.filter((_, rowIndex) => rowIndex !== index))}
+                          className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-zinc-200 text-zinc-500 hover:bg-zinc-50 disabled:opacity-30"
+                          aria-label="Xóa liên kết"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                      {selectedCandidate ? (
+                        <div className="mt-2 grid gap-1 text-xs text-zinc-500 sm:grid-cols-3">
+                          <span>Nhận: {money(selectedCandidate.originalAmount)}</span>
+                          <span>Đã hoàn trước: {money(selectedCandidate.refundedAmount)}</span>
+                          <span>Có thể hoàn: {money(selectedCandidate.refundableAmount)}</span>
+                          <span className="break-words sm:col-span-3">{selectedCandidate.description}</span>
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setRows((current) => [...current, { originalTransactionId: "", amount: "" }])}
+                className="inline-flex items-center gap-1 rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+              >
+                <Plus className="h-4 w-4" /> Thêm khoản nhận
+              </button>
+
+              <div className="grid grid-cols-2 gap-2 rounded-md border border-zinc-200 bg-zinc-50 p-3 text-sm">
+                <div>
+                  <div className="text-zinc-500">Đã liên kết</div>
+                  <div className="mt-1 font-semibold text-zinc-950">{money(linkedTotal)}</div>
+                </div>
+                <div className="text-right">
+                  <div className="text-zinc-500">Còn phải liên kết</div>
+                  <div className={`mt-1 font-semibold ${linkedTotal === data.refundAmount ? "text-emerald-700" : "text-rose-700"}`}>
+                    {money(data.refundAmount - linkedTotal)}
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+
+          <div className="flex flex-col-reverse gap-2 border-t border-zinc-100 pt-4 sm:flex-row sm:justify-end">
+            <button type="button" onClick={onClose} className="rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50">
+              Hủy
+            </button>
+            <button
+              disabled={!isValid || isSaving}
+              className="inline-flex items-center justify-center gap-2 rounded-md bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Link2 className="h-4 w-4" />}
+              Lưu liên kết
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }
