@@ -24,6 +24,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         debitAmount: true,
         campaignId: true,
         outflowType: true,
+        _count: { select: { receivedRefundLinks: true } },
         campaign: { select: { code: true } },
         allocations: { select: { campaign: { select: { code: true } } } },
       },
@@ -34,9 +35,15 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         { status: 400 },
       );
     }
+    const campaignChanged =
+      body.campaignId !== undefined && (body.campaignId || null) !== previousTransaction?.campaignId;
+    if (campaignChanged && (previousTransaction?._count.receivedRefundLinks ?? 0) > 0) {
+      return NextResponse.json(
+        { error: "Không thể đổi thiện pháp vì khoản nhận này đã được liên kết với một khoản hoàn." },
+        { status: 400 },
+      );
+    }
     const transaction = await prisma.$transaction(async (tx) => {
-      const campaignChanged =
-        body.campaignId !== undefined && (body.campaignId || null) !== previousTransaction?.campaignId;
       const noLongerRefund = body.outflowType !== undefined && body.outflowType !== "REFUND";
       if (campaignChanged || noLongerRefund) {
         await tx.transactionRefundAllocation.deleteMany({ where: { refundTransactionId: id } });

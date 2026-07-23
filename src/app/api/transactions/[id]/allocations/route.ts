@@ -42,6 +42,7 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
       include: {
         campaign: { select: { code: true } },
         allocations: { include: { campaign: { select: { code: true } } } },
+        _count: { select: { receivedRefundLinks: true } },
       },
     });
     if (!transaction) {
@@ -52,6 +53,12 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
     if (creditAmount <= 0) {
       return NextResponse.json(
         { error: "Chỉ có thể chia giao dịch tiền vào." },
+        { status: 400 },
+      );
+    }
+    if (transaction._count.receivedRefundLinks > 0) {
+      return NextResponse.json(
+        { error: "Không thể chia lại vì khoản nhận này đã được liên kết với một khoản hoàn." },
         { status: 400 },
       );
     }
