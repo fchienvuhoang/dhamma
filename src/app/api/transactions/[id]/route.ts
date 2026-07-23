@@ -9,6 +9,7 @@ import {
 
 const updateTransactionSchema = z.object({
   campaignId: z.string().optional().nullable(),
+  outflowType: z.enum(["DONATION", "REFUND"]).optional(),
 });
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
@@ -20,18 +21,30 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     const previousTransaction = await prisma.bankTransaction.findUnique({
       where: { id },
       select: {
+        debitAmount: true,
         campaign: { select: { code: true } },
         allocations: { select: { campaign: { select: { code: true } } } },
       },
     });
+    if (body.outflowType && Number(previousTransaction?.debitAmount ?? 0) <= 0) {
+      return NextResponse.json(
+        { error: "Chỉ giao dịch chuyển ra mới có thể đặt là cúng dường hoặc hoàn lại." },
+        { status: 400 },
+      );
+    }
     const transaction = await prisma.$transaction(async (tx) => {
       await tx.transactionAllocation.deleteMany({ where: { transactionId: id } });
       return tx.bankTransaction.update({
         where: { id },
         data: {
-          campaignId: body.campaignId || null,
-          matchedKeyword: body.campaignId ? "Gán thủ công" : null,
-          classificationStatus: body.campaignId ? "MANUAL" : "UNMATCHED",
+          ...(body.campaignId !== undefined
+            ? {
+                campaignId: body.campaignId || null,
+                matchedKeyword: body.campaignId ? "Gán thủ công" : null,
+                classificationStatus: body.campaignId ? ("MANUAL" as const) : ("UNMATCHED" as const),
+              }
+            : {}),
+          ...(body.outflowType ? { outflowType: body.outflowType } : {}),
         },
         include: { campaign: { select: { code: true } } },
       });

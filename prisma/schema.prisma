@@ -24,6 +24,11 @@ enum ClassificationStatus {
   MANUAL
 }
 
+enum CampaignOutflowType {
+  DONATION
+  REFUND
+}
+
 model BankAccount {
   id             String            @id @default(cuid())
   bankName       String            @default("TECHCOMBANK")
@@ -108,6 +113,7 @@ model BankTransaction {
   detail                String               @unique
   debitAmount           Decimal              @default(0) @db.Decimal(18, 2)
   creditAmount          Decimal              @default(0) @db.Decimal(18, 2)
+  outflowType           CampaignOutflowType  @default(DONATION)
   balanceAfter          Decimal?             @db.Decimal(18, 2)
   matchedKeyword        String?
   classificationStatus  ClassificationStatus @default(UNMATCHED)

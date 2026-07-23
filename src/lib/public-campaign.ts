@@ -4,7 +4,7 @@ import { getPrisma } from "@/lib/prisma";
 import { redactPhoneNumbers } from "@/lib/privacy";
 import { makeCampaignCode } from "@/lib/text";
 
-const PUBLIC_CAMPAIGN_DATA_CACHE_VERSION = "transaction-allocations-v1";
+const PUBLIC_CAMPAIGN_DATA_CACHE_VERSION = "campaign-outflow-type-v1";
 const PUBLIC_CAMPAIGN_LIST_TAG = "public-campaign-list";
 
 export type ActivePublicCampaign = {
@@ -33,6 +33,7 @@ export type PublicCampaignTransaction = {
   description: string;
   debitAmount: number;
   creditAmount: number;
+  outflowType: "DONATION" | "REFUND";
 };
 
 export async function getPublicCampaignMeta(code: string) {
@@ -112,6 +113,7 @@ export async function getPublicCampaignData(code: string): Promise<PublicCampaig
     prisma.bankTransaction.aggregate({
       where: {
         campaignId: campaign.id,
+        outflowType: "DONATION",
       },
       _sum: {
         creditAmount: true,
@@ -136,6 +138,7 @@ export async function getPublicCampaignData(code: string): Promise<PublicCampaig
         description: true,
         debitAmount: true,
         creditAmount: true,
+        outflowType: true,
       },
       orderBy: [{ transactionDate: "desc" }, { createdAt: "desc" }, { statementRow: "desc" }],
       take: 1000,
@@ -172,6 +175,7 @@ export async function getPublicCampaignData(code: string): Promise<PublicCampaig
       description: redactPhoneNumbers(transaction.description),
       debitAmount: decimalToNumber(transaction.debitAmount),
       creditAmount: decimalToNumber(transaction.creditAmount),
+      outflowType: transaction.outflowType,
     })),
     ...allocations.map((allocation) => ({
       id: allocation.id,
@@ -181,6 +185,7 @@ export async function getPublicCampaignData(code: string): Promise<PublicCampaig
       description: redactPhoneNumbers(allocation.transaction.description),
       debitAmount: 0,
       creditAmount: decimalToNumber(allocation.amount),
+      outflowType: "DONATION" as const,
     })),
   ]
     .sort((left, right) => {

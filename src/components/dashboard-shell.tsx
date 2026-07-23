@@ -249,7 +249,11 @@ function Dashboard({ data }: { data: DashboardData }) {
     }
   }
 
-  async function assignTransaction(transactionId: string, campaignId: string | null) {
+  async function assignTransaction(
+    transactionId: string,
+    campaignId: string | null,
+    outflowType?: "DONATION" | "REFUND",
+  ) {
     setError(null);
     setMessage(null);
     setPendingTransactionId(transactionId);
@@ -259,7 +263,7 @@ function Dashboard({ data }: { data: DashboardData }) {
         await fetch(`/api/transactions/${transactionId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ campaignId }),
+          body: JSON.stringify({ campaignId, ...(outflowType ? { outflowType } : {}) }),
         }),
       );
       router.refresh();
@@ -535,7 +539,7 @@ function TransactionTable({
   transactions: TransactionSummary[];
   campaigns: CampaignSummary[];
   pendingTransactionId: string | null;
-  onAssign: (transactionId: string, campaignId: string | null) => void;
+  onAssign: (transactionId: string, campaignId: string | null, outflowType?: "DONATION" | "REFUND") => void;
   onSplit: (transaction: TransactionSummary) => void;
 }) {
   return (
@@ -791,7 +795,7 @@ function DebitTransactionTable({
   transactions: TransactionSummary[];
   campaigns: CampaignSummary[];
   pendingTransactionId: string | null;
-  onAssign: (transactionId: string, campaignId: string | null) => void;
+  onAssign: (transactionId: string, campaignId: string | null, outflowType?: "DONATION" | "REFUND") => void;
 }) {
   return (
     <div className="mt-4 overflow-hidden rounded-md border border-zinc-200">
@@ -804,6 +808,7 @@ function DebitTransactionTable({
               <th className="px-3 py-2">Chi tiết</th>
               <th className="px-3 py-2 text-right">Nợ</th>
               <th className="px-3 py-2">Thiện pháp</th>
+              <th className="px-3 py-2">Loại chuyển ra</th>
               <th className="px-3 py-2">Gán</th>
             </tr>
           </thead>
@@ -840,9 +845,28 @@ function DebitTransactionTable({
                 </td>
                 <td className="px-3 py-2 align-top">
                   <select
+                    value={transaction.outflowType}
+                    disabled={pendingTransactionId === transaction.id}
+                    onChange={(event) =>
+                      onAssign(
+                        transaction.id,
+                        transaction.campaign?.id ?? null,
+                        event.target.value as "DONATION" | "REFUND",
+                      )
+                    }
+                    className="w-32 rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-xs outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+                  >
+                    <option value="DONATION">Cúng dường</option>
+                    <option value="REFUND">Hoàn lại</option>
+                  </select>
+                </td>
+                <td className="px-3 py-2 align-top">
+                  <select
                     value={transaction.campaign?.id ?? ""}
                     disabled={pendingTransactionId === transaction.id}
-                    onChange={(event) => onAssign(transaction.id, event.target.value || null)}
+                    onChange={(event) =>
+                      onAssign(transaction.id, event.target.value || null, transaction.outflowType)
+                    }
                     className="w-44 rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-xs outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
                   >
                     <option value="">Chưa gán</option>
@@ -857,7 +881,7 @@ function DebitTransactionTable({
             ))}
             {transactions.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-3 py-10 text-center text-zinc-500">
+                <td colSpan={7} className="px-3 py-10 text-center text-zinc-500">
                   Chưa có khoản chi nào từ cột NỢ trong sao kê.
                 </td>
               </tr>

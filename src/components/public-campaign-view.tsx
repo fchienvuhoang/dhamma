@@ -187,6 +187,15 @@ function transactionMeta(transaction: PublicCampaignTransaction) {
     };
   }
 
+  if (transaction.outflowType === "REFUND") {
+    return {
+      label: "Hoàn lại",
+      amount: transaction.debitAmount,
+      className: "border-violet-200 bg-violet-50 text-violet-700",
+      amountClassName: "text-violet-700",
+    };
+  }
+
   return {
     label: "Cúng dường",
     amount: transaction.debitAmount,

@@ -42,7 +42,7 @@ export async function getReadonlyDashboardData(): Promise<ReadonlyDashboardData>
     }),
     prisma.bankTransaction.groupBy({
       by: ["campaignId"],
-      where: { campaignId: { not: null } },
+      where: { campaignId: { not: null }, outflowType: "DONATION" },
       _sum: { creditAmount: true, debitAmount: true },
       _count: { _all: true },
     }),

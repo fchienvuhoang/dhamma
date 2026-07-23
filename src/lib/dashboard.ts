@@ -74,6 +74,7 @@ export type TransactionSummary = {
   detail: string;
   debitAmount: number;
   creditAmount: number;
+  outflowType: "DONATION" | "REFUND";
   balanceAfter: number | null;
   matchedKeyword: string | null;
   classificationStatus: "MATCHED" | "UNMATCHED" | "MANUAL";
@@ -125,6 +126,7 @@ export async function getDashboardState(): Promise<DashboardState> {
       }),
       prisma.bankTransaction.groupBy({
         by: ["campaignId"],
+        where: { outflowType: "DONATION" },
         _sum: {
           creditAmount: true,
           debitAmount: true,
@@ -310,6 +312,7 @@ export async function getDashboardState(): Promise<DashboardState> {
           detail: transaction.detail,
           debitAmount: decimalToNumber(transaction.debitAmount),
           creditAmount: decimalToNumber(transaction.creditAmount),
+          outflowType: transaction.outflowType,
           balanceAfter:
             transaction.balanceAfter == null ? null : decimalToNumber(transaction.balanceAfter),
           matchedKeyword: transaction.matchedKeyword,
@@ -330,6 +333,7 @@ export async function getDashboardState(): Promise<DashboardState> {
           detail: transaction.detail,
           debitAmount: decimalToNumber(transaction.debitAmount),
           creditAmount: decimalToNumber(transaction.creditAmount),
+          outflowType: transaction.outflowType,
           balanceAfter:
             transaction.balanceAfter == null ? null : decimalToNumber(transaction.balanceAfter),
           matchedKeyword: transaction.matchedKeyword,
